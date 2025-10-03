@@ -1,0 +1,31 @@
+{
+  "name": "digital-minion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TypeScript-based NPM package monorepo",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "clean": "npm run clean --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces"
+  },
+  "dependencies": {
+    "@types/prompts": "^2.4.9",
+    "commander": "^14.0.1",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/asana": "^0.18.16",
+    "@types/node": "^20.0.0",
+    "asana": "^3.1.2",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
