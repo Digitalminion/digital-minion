@@ -1,45 +1,32 @@
 const Asana = require('asana');
-import { Task, TaskBackend, Tag, Section, Comment } from './types';
-import { AsanaConfig } from '../../config/types';
+import { ITaskBackend } from '../core/task-backend';
+import { Task, Tag } from '../core/types';
+import { AsanaConfig, AsanaBackendBase } from './asana-config';
 
 /**
- * Asana-based implementation of the TaskBackend interface.
+ * Asana-based implementation of the ITaskBackend interface.
  *
  * Provides task management functionality using the Asana API as the backend
- * storage system. Handles all CRUD operations for tasks, tags, sections,
- * and subtasks within a configured Asana project.
+ * storage system. Handles all CRUD operations for tasks, including creation,
+ * retrieval, updates, deletion, completion, and assignment.
+ *
+ * This class focuses exclusively on task-related operations as defined by
+ * the ITaskBackend interface.
  */
-export class AsanaTaskBackend implements TaskBackend {
+export class AsanaTaskBackend extends AsanaBackendBase implements ITaskBackend {
   private tasksApi: any;
   private tagsApi: any;
-  private sectionsApi: any;
-  private projectsApi: any;
-  private storiesApi: any;
-  private client: any;
-  private accessToken: string;
-  private projectId: string;
-  private workspaceId: string;
 
   constructor(config: AsanaConfig) {
-    const client = Asana.ApiClient.instance;
-    const token = client.authentications['token'];
-    token.accessToken = config.accessToken;
-
-    this.client = client;
-    this.accessToken = config.accessToken;
+    super(config);
     this.tasksApi = new Asana.TasksApi();
     this.tagsApi = new Asana.TagsApi();
-    this.sectionsApi = new Asana.SectionsApi();
-    this.projectsApi = new Asana.ProjectsApi();
-    this.storiesApi = new Asana.StoriesApi();
-    this.projectId = config.projectId;
-    this.workspaceId = config.workspaceId;
   }
 
   async listTasks(): Promise<Task[]> {
     try {
       const result = await this.tasksApi.getTasksForProject(this.projectId, {
-        opt_fields: 'gid,name,notes,completed,due_on,assignee.name,tags.name,parent.gid,num_subtasks,memberships.section.name,memberships.section.gid',
+        opt_fields: 'gid,name,notes,completed,due_on,start_on,assignee.name,assignee.gid,tags.name,parent.gid,num_subtasks,memberships.section.name,memberships.section.gid,num_likes,dependencies.gid,dependents.gid,is_milestone',
       });
 
       return result.data.map((task: any) => {
@@ -54,12 +41,18 @@ export class AsanaTaskBackend implements TaskBackend {
           notes: task.notes || undefined,
           completed: task.completed,
           dueOn: task.due_on || undefined,
+          startOn: task.start_on || undefined,
           assignee: task.assignee?.name || undefined,
+          assigneeGid: task.assignee?.gid || undefined,
           tags,
           parent: task.parent?.gid || undefined,
           numSubtasks: task.num_subtasks || undefined,
           memberships: task.memberships || undefined,
           priority,
+          isMilestone: task.is_milestone || undefined,
+          numAttachments: task.num_likes || undefined,
+          dependencies: task.dependencies?.map((d: any) => d.gid) || undefined,
+          dependents: task.dependents?.map((d: any) => d.gid) || undefined,
         };
       });
     } catch (error) {
@@ -70,7 +63,7 @@ export class AsanaTaskBackend implements TaskBackend {
   async getTask(taskId: string): Promise<Task> {
     try {
       const result = await this.tasksApi.getTask(taskId, {
-        opt_fields: 'gid,name,notes,completed,due_on,assignee.name,tags.name,parent.gid,num_subtasks',
+        opt_fields: 'gid,name,notes,completed,due_on,start_on,assignee.name,assignee.gid,tags.name,parent.gid,num_subtasks,num_likes,dependencies.gid,dependents.gid,is_milestone',
       });
 
       const task = result.data;
@@ -85,18 +78,24 @@ export class AsanaTaskBackend implements TaskBackend {
         notes: task.notes || undefined,
         completed: task.completed,
         dueOn: task.due_on || undefined,
+        startOn: task.start_on || undefined,
         assignee: task.assignee?.name || undefined,
+        assigneeGid: task.assignee?.gid || undefined,
         tags,
         parent: task.parent?.gid || undefined,
         numSubtasks: task.num_subtasks || undefined,
         priority,
+        isMilestone: task.is_milestone || undefined,
+        numAttachments: task.num_likes || undefined,
+        dependencies: task.dependencies?.map((d: any) => d.gid) || undefined,
+        dependents: task.dependents?.map((d: any) => d.gid) || undefined,
       };
     } catch (error) {
       throw new Error(`Failed to get task: ${error}`);
     }
   }
 
-  async createTask(name: string, notes?: string, dueOn?: string, priority?: string): Promise<Task> {
+  async createTask(name: string, notes?: string, dueOn?: string, priority?: string, isMilestone?: boolean): Promise<Task> {
     try {
       const taskData: any = {
         name,
@@ -105,9 +104,10 @@ export class AsanaTaskBackend implements TaskBackend {
 
       if (notes) taskData.notes = notes;
       if (dueOn) taskData.due_on = dueOn;
+      if (isMilestone !== undefined) taskData.is_milestone = isMilestone;
 
       const result = await this.tasksApi.createTask({ data: taskData }, {
-        opt_fields: 'gid,name,notes,completed,due_on,assignee.name,tags.name',
+        opt_fields: 'gid,name,notes,completed,due_on,assignee.name,tags.name,is_milestone',
       });
 
       const task = result.data;
@@ -135,6 +135,8 @@ export class AsanaTaskBackend implements TaskBackend {
       if (updates.notes !== undefined) taskData.notes = updates.notes;
       if (updates.completed !== undefined) taskData.completed = updates.completed;
       if (updates.dueOn !== undefined) taskData.due_on = updates.dueOn;
+      if (updates.startOn !== undefined) taskData.start_on = updates.startOn;
+      if (updates.isMilestone !== undefined) taskData.is_milestone = updates.isMilestone;
 
       // Update standard fields if any
       if (Object.keys(taskData).length > 0) {
@@ -167,7 +169,41 @@ export class AsanaTaskBackend implements TaskBackend {
     return this.updateTask(taskId, { completed: true });
   }
 
-  async listTags(): Promise<Tag[]> {
+  async assignToUser(taskId: string, userGid: string): Promise<Task> {
+    try {
+      await this.tasksApi.updateTask(
+        { data: { assignee: userGid } },
+        taskId,
+        {
+          opt_fields: 'gid',
+        }
+      );
+      return await this.getTask(taskId);
+    } catch (error) {
+      throw new Error(`Failed to assign task to user: ${error}`);
+    }
+  }
+
+  async unassignTask(taskId: string): Promise<Task> {
+    try {
+      await this.tasksApi.updateTask(
+        { data: { assignee: null } },
+        taskId,
+        {
+          opt_fields: 'gid',
+        }
+      );
+      return await this.getTask(taskId);
+    } catch (error) {
+      throw new Error(`Failed to unassign task: ${error}`);
+    }
+  }
+
+  /**
+   * Helper method to list tags in the workspace.
+   * Used internally by ensureAndAddTag and updatePriorityTag.
+   */
+  private async listTags(): Promise<Tag[]> {
     try {
       const result = await this.tagsApi.getTagsForWorkspace(this.workspaceId);
       return result.data.map((tag: any) => ({
@@ -179,7 +215,11 @@ export class AsanaTaskBackend implements TaskBackend {
     }
   }
 
-  async createTag(name: string): Promise<Tag> {
+  /**
+   * Helper method to create a tag in the workspace.
+   * Used internally by ensureAndAddTag.
+   */
+  private async createTag(name: string): Promise<Tag> {
     try {
       const result = await this.tagsApi.createTag({
         data: {
@@ -197,7 +237,11 @@ export class AsanaTaskBackend implements TaskBackend {
     }
   }
 
-  async addTagToTask(taskId: string, tagId: string): Promise<void> {
+  /**
+   * Helper method to add a tag to a task.
+   * Used internally by ensureAndAddTag.
+   */
+  private async addTagToTask(taskId: string, tagId: string): Promise<void> {
     try {
       await this.tasksApi.addTagForTask({
         data: {
@@ -209,7 +253,11 @@ export class AsanaTaskBackend implements TaskBackend {
     }
   }
 
-  async removeTagFromTask(taskId: string, tagId: string): Promise<void> {
+  /**
+   * Helper method to remove a tag from a task.
+   * Used internally by updatePriorityTag.
+   */
+  private async removeTagFromTask(taskId: string, tagId: string): Promise<void> {
     try {
       await this.tasksApi.removeTagForTask({
         data: {
@@ -218,121 +266,6 @@ export class AsanaTaskBackend implements TaskBackend {
       }, taskId);
     } catch (error) {
       throw new Error(`Failed to remove tag from task: ${error}`);
-    }
-  }
-
-  async listSections(): Promise<Section[]> {
-    try {
-      const result = await this.sectionsApi.getSectionsForProject(this.projectId);
-      return result.data.map((section: any) => ({
-        gid: section.gid,
-        name: section.name,
-      }));
-    } catch (error) {
-      throw new Error(`Failed to list sections: ${error}`);
-    }
-  }
-
-  async createSection(name: string): Promise<Section> {
-    try {
-      // Use direct REST API call since the Node.js library doesn't have this method
-      const response = await fetch(`https://app.asana.com/api/1.0/projects/${this.projectId}/sections`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ data: { name } }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result: any = await response.json();
-      return {
-        gid: result.data.gid,
-        name: result.data.name,
-      };
-    } catch (error) {
-      throw new Error(`Failed to create section: ${error}`);
-    }
-  }
-
-  async moveTaskToSection(taskId: string, sectionId: string): Promise<void> {
-    try {
-      // Use the tasks API to add the task to the section
-      await this.tasksApi.addProjectForTask(
-        { data: { project: this.projectId, section: sectionId } },
-        taskId
-      );
-    } catch (error) {
-      throw new Error(`Failed to move task to section: ${error}`);
-    }
-  }
-
-  async listSubtasks(parentTaskId: string): Promise<Task[]> {
-    try {
-      const result = await this.tasksApi.getSubtasksForTask(parentTaskId, {
-        opt_fields: 'gid,name,notes,completed,due_on,assignee.name,tags.name,parent.gid,num_subtasks',
-      });
-
-      return result.data.map((task: any) => {
-        const tags = task.tags?.map((tag: any) => tag.name) || [];
-        // Derive priority from priority:* tags
-        const priorityTag = tags.find((t: string) => t.startsWith('priority:'));
-        const priority = priorityTag ? priorityTag.split(':')[1] as ('low' | 'medium' | 'high') : undefined;
-
-        return {
-          gid: task.gid,
-          name: task.name,
-          notes: task.notes || undefined,
-          completed: task.completed,
-          dueOn: task.due_on || undefined,
-          assignee: task.assignee?.name || undefined,
-          tags,
-          parent: task.parent?.gid || undefined,
-          numSubtasks: task.num_subtasks || undefined,
-          priority,
-        };
-      });
-    } catch (error) {
-      throw new Error(`Failed to list subtasks: ${error}`);
-    }
-  }
-
-  async createSubtask(parentTaskId: string, name: string, notes?: string, dueOn?: string): Promise<Task> {
-    try {
-      const taskData: any = {
-        name,
-        parent: parentTaskId,
-      };
-
-      if (notes) taskData.notes = notes;
-      if (dueOn) taskData.due_on = dueOn;
-
-      const result = await this.tasksApi.createTask(
-        { data: taskData },
-        {
-          opt_fields: 'gid,name,notes,completed,due_on,assignee.name,tags.name,parent.gid,num_subtasks',
-        }
-      );
-
-      const task = result.data;
-      return {
-        gid: task.gid,
-        name: task.name,
-        notes: task.notes || undefined,
-        completed: task.completed,
-        dueOn: task.due_on || undefined,
-        assignee: task.assignee?.name || undefined,
-        tags: task.tags?.map((tag: any) => tag.name) || [],
-        parent: task.parent?.gid || undefined,
-        numSubtasks: task.num_subtasks || undefined,
-      };
-    } catch (error) {
-      throw new Error(`Failed to create subtask: ${error}`);
     }
   }
 
@@ -383,48 +316,6 @@ export class AsanaTaskBackend implements TaskBackend {
       await this.ensureAndAddTag(taskId, newPriorityTag);
     } catch (error) {
       throw new Error(`Failed to update priority tag: ${error}`);
-    }
-  }
-
-  async listComments(taskId: string): Promise<Comment[]> {
-    try {
-      const result = await this.storiesApi.getStoriesForTask(taskId, {
-        opt_fields: 'gid,text,created_by.name,created_at,resource_subtype',
-      });
-
-      // Filter to only comment stories (not system-generated stories)
-      return result.data
-        .filter((story: any) => story.resource_subtype === 'comment_added')
-        .map((story: any) => ({
-          gid: story.gid,
-          text: story.text || '',
-          createdBy: story.created_by?.name || undefined,
-          createdAt: story.created_at || undefined,
-        }));
-    } catch (error) {
-      throw new Error(`Failed to list comments: ${error}`);
-    }
-  }
-
-  async createComment(taskId: string, text: string): Promise<Comment> {
-    try {
-      const result = await this.storiesApi.createStoryForTask(
-        { data: { text } },
-        taskId,
-        {
-          opt_fields: 'gid,text,created_by.name,created_at',
-        }
-      );
-
-      const story = result.data;
-      return {
-        gid: story.gid,
-        text: story.text || '',
-        createdBy: story.created_by?.name || undefined,
-        createdAt: story.created_at || undefined,
-      };
-    } catch (error) {
-      throw new Error(`Failed to create comment: ${error}`);
     }
   }
 }

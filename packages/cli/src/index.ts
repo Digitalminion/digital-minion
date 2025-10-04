@@ -1,8 +1,6 @@
-#!/usr/bin/env node
-
 import { Command } from 'commander';
 import { ModuleRegistry } from './registry';
-import { InitModule } from './modules/init';
+import { ConfigModule } from './modules/config';
 import { ListModule } from './modules/list';
 import { TaskModule } from './modules/task';
 import { TagModule } from './modules/tag';
@@ -11,6 +9,13 @@ import { SubtaskModule } from './modules/subtask';
 import { CommentModule } from './modules/comment';
 import { ExamplesModule } from './modules/examples';
 import { ExportModule } from './modules/export';
+import { AttachmentModule } from './modules/attachment';
+import { DependencyModule } from './modules/dependency';
+import { WorkflowModule } from './modules/workflow';
+import { StatusModule } from './modules/status';
+import { ProjectModule } from './modules/project';
+import { UserModule } from './modules/user';
+import { BatchModule } from './modules/batch';
 import { OutputFormatter } from './output';
 
 /**
@@ -78,13 +83,20 @@ Key Features:
     .option('-o, --output <format>', 'Output format: text (default) or json for automation', 'text');
 
   // Register modules
-  registry.register(new InitModule());
+  registry.register(new ConfigModule());
   registry.register(new ListModule());
+  registry.register(new ProjectModule());
   registry.register(new TaskModule());
   registry.register(new TagModule());
   registry.register(new SectionModule());
   registry.register(new SubtaskModule());
   registry.register(new CommentModule());
+  registry.register(new AttachmentModule());
+  registry.register(new DependencyModule());
+  registry.register(new WorkflowModule());
+  registry.register(new StatusModule());
+  registry.register(new UserModule());
+  registry.register(new BatchModule());
   registry.register(new ExportModule());
   registry.register(new ExamplesModule());
 

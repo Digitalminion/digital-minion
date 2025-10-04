@@ -2,10 +2,10 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Module } from '../../types';
-import { ConfigManager } from '../../config/manager';
-import { TaskBackend } from '../list/types';
-import { AsanaTaskBackend } from '../list/asana-backend';
+import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
+import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { Backends } from '@digital-minion/lib';
 
 /**
  * Module for exporting tasks to various formats.
@@ -18,9 +18,313 @@ export class ExportModule implements Module {
   name = 'export';
   description = 'Export tasks to various formats (CSV, JSON, Markdown)';
 
+  metadata: CommandMetadata = {
+    name: 'export',
+    alias: 'ex',
+    summary: 'Export tasks to various formats (CSV, JSON, Markdown)',
+    description: `Export task data to CSV, JSON, or Markdown formats for reporting, backup,
+or integration with other tools. Supports filtering by the same criteria
+as the list command.`,
+    subcommands: [
+      {
+        name: 'csv',
+        summary: 'Export tasks to CSV format',
+        description: 'Creates a comma-separated values file suitable for importing into spreadsheet applications like Excel, Google Sheets, or for processing with data tools.',
+        arguments: [
+          {
+            name: 'filename',
+            required: true,
+            type: 'string',
+            description: 'Output file path (e.g., tasks.csv)'
+          }
+        ],
+        options: [
+          {
+            short: '-c',
+            long: '--completed',
+            description: 'Export only completed tasks',
+            takesValue: false
+          },
+          {
+            short: '-i',
+            long: '--incomplete',
+            description: 'Export only incomplete tasks',
+            takesValue: false
+          },
+          {
+            short: '-s',
+            long: '--search',
+            description: 'Search tasks by name or notes',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<query>'
+          },
+          {
+            short: '-a',
+            long: '--assignee',
+            description: 'Filter by Asana assignee name',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<name>'
+          },
+          {
+            long: '--agent',
+            description: 'Filter by agent assignment tag',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<agentName>'
+          },
+          {
+            long: '--due-from',
+            description: 'Filter tasks due from date (YYYY-MM-DD)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<date>'
+          },
+          {
+            long: '--due-to',
+            description: 'Filter tasks due to/before date (YYYY-MM-DD)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<date>'
+          },
+          {
+            long: '--tag',
+            description: 'Filter by tag(s) - comma-separated',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<tags>'
+          },
+          {
+            short: '-p',
+            long: '--priority',
+            description: 'Filter by priority (low, medium, high)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<level>'
+          }
+        ],
+        examples: [
+          {
+            description: 'Export all tasks to CSV',
+            command: 'dm export csv all-tasks.csv'
+          },
+          {
+            description: 'Export incomplete tasks only',
+            command: 'dm export csv incomplete.csv -i'
+          },
+          {
+            description: 'Export agent-specific tasks',
+            command: 'dm export csv agent-tasks.csv --agent becky -i'
+          },
+          {
+            description: 'Export high-priority bugs',
+            command: 'dm export csv high-priority.csv --priority high --tag "bug"'
+          }
+        ]
+      },
+      {
+        name: 'json',
+        summary: 'Export tasks to JSON format',
+        description: 'Creates a JSON file with complete task data for programmatic processing, backup, or integration with other systems.',
+        arguments: [
+          {
+            name: 'filename',
+            required: true,
+            type: 'string',
+            description: 'Output file path (e.g., tasks.json)'
+          }
+        ],
+        options: [
+          {
+            short: '-c',
+            long: '--completed',
+            description: 'Export only completed tasks',
+            takesValue: false
+          },
+          {
+            short: '-i',
+            long: '--incomplete',
+            description: 'Export only incomplete tasks',
+            takesValue: false
+          },
+          {
+            short: '-s',
+            long: '--search',
+            description: 'Search tasks by name or notes',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<query>'
+          },
+          {
+            short: '-a',
+            long: '--assignee',
+            description: 'Filter by Asana assignee name',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<name>'
+          },
+          {
+            long: '--agent',
+            description: 'Filter by agent assignment tag',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<agentName>'
+          },
+          {
+            long: '--due-from',
+            description: 'Filter tasks due from date (YYYY-MM-DD)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<date>'
+          },
+          {
+            long: '--due-to',
+            description: 'Filter tasks due to/before date (YYYY-MM-DD)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<date>'
+          },
+          {
+            long: '--tag',
+            description: 'Filter by tag(s) - comma-separated',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<tags>'
+          },
+          {
+            short: '-p',
+            long: '--priority',
+            description: 'Filter by priority (low, medium, high)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<level>'
+          }
+        ],
+        examples: [
+          {
+            description: 'Export all tasks to JSON',
+            command: 'dm export json backup.json'
+          },
+          {
+            description: 'Export incomplete tasks only',
+            command: 'dm export json incomplete.json -i'
+          },
+          {
+            description: 'Export tasks for multiple agents',
+            command: 'dm export json team-tasks.json --agent alice --agent bob'
+          }
+        ]
+      },
+      {
+        name: 'markdown',
+        alias: 'md',
+        summary: 'Export tasks to Markdown format',
+        description: 'Creates a human-readable Markdown document with task data organized by sections and status. Great for documentation and reports.',
+        arguments: [
+          {
+            name: 'filename',
+            required: true,
+            type: 'string',
+            description: 'Output file path (e.g., report.md)'
+          }
+        ],
+        options: [
+          {
+            short: '-c',
+            long: '--completed',
+            description: 'Export only completed tasks',
+            takesValue: false
+          },
+          {
+            short: '-i',
+            long: '--incomplete',
+            description: 'Export only incomplete tasks',
+            takesValue: false
+          },
+          {
+            short: '-s',
+            long: '--search',
+            description: 'Search tasks by name or notes',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<query>'
+          },
+          {
+            short: '-a',
+            long: '--assignee',
+            description: 'Filter by Asana assignee name',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<name>'
+          },
+          {
+            long: '--agent',
+            description: 'Filter by agent assignment tag',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<agentName>'
+          },
+          {
+            long: '--due-from',
+            description: 'Filter tasks due from date (YYYY-MM-DD)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<date>'
+          },
+          {
+            long: '--due-to',
+            description: 'Filter tasks due to/before date (YYYY-MM-DD)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<date>'
+          },
+          {
+            long: '--tag',
+            description: 'Filter by tag(s) - comma-separated',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<tags>'
+          },
+          {
+            short: '-p',
+            long: '--priority',
+            description: 'Filter by priority (low, medium, high)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<level>'
+          }
+        ],
+        examples: [
+          {
+            description: 'Export incomplete tasks to Markdown report',
+            command: 'dm export markdown sprint-report.md -i'
+          },
+          {
+            description: 'Export tasks due by end of year',
+            command: 'dm export md weekly-tasks.md --due-to 2025-12-31'
+          },
+          {
+            description: 'Export team status report',
+            command: 'dm export markdown team-status.md --agent team'
+          }
+        ]
+      }
+    ],
+    notes: [
+      'Spreadsheet-compatible CSV format for Excel, Google Sheets',
+      'Machine-readable JSON format for programmatic processing',
+      'Human-readable Markdown format for documentation',
+      'All filtering options from list command are supported',
+      'Use for reporting, backup, and integration with other tools',
+      'No file created if no tasks match filter criteria'
+    ]
+  };
+
   register(program: Command): void {
     const exportCmd = program
       .command('export')
+      .alias('ex')
       .description(`Export tasks to various formats
 
 Export task data to CSV, JSON, or Markdown formats for reporting, backup,
@@ -37,6 +341,19 @@ Examples:
   dm export json backup.json
   dm export markdown report.md --agent becky -i
   dm export csv high-priority.csv --priority high -i`);
+
+    // Add metadata help support
+    exportCmd.option('--help-json', 'Output command help as JSON');
+
+    // Override help to support JSON output
+    const originalHelp = exportCmd.helpInformation.bind(exportCmd);
+    exportCmd.helpInformation = () => {
+      const opts = exportCmd.opts();
+      if (opts.helpJson) {
+        return renderHelpJson(this.metadata);
+      }
+      return originalHelp();
+    };
 
     exportCmd
       .command('csv <filename>')
@@ -132,93 +449,50 @@ Examples:
   }
 
   /**
-   * Gets the configured task backend.
-   *
-   * Returns:
-   *   TaskBackend implementation (currently Asana only).
-   */
-  private getBackend(): TaskBackend {
-    const configManager = new ConfigManager();
-    const config = configManager.load();
-
-    if (!config) {
-      console.error('✗ No configuration found. Please run "tasks init" first.');
-      process.exit(1);
-    }
-
-    if (config.backend === 'asana') {
-      if (!config.asana) {
-        console.error('✗ Asana configuration not found. Please run "tasks init" again.');
-        process.exit(1);
-      }
-      return new AsanaTaskBackend(config.asana);
-    } else {
-      console.error('✗ Local backend not yet implemented.');
-      process.exit(1);
-    }
-  }
-
-  /**
-   * Applies filter options to task list.
+   * Converts command-line options to ExportFilters.
    *
    * Args:
-   *   tasks: Array of tasks to filter.
    *   options: Filter options from command line.
    *
    * Returns:
-   *   Filtered array of tasks.
+   *   ExportFilters object for the backend.
    */
-  private applyFilters(tasks: any[], options: any): any[] {
-    let filtered = tasks;
+  private buildFilters(options: any): Backends.ExportFilters {
+    const filters: Backends.ExportFilters = {};
 
     // Filter by completion status
     if (options.completed) {
-      filtered = filtered.filter(t => t.completed);
+      filters.completed = true;
     } else if (options.incomplete) {
-      filtered = filtered.filter(t => !t.completed);
-    }
-
-    // Search by name/notes
-    if (options.search) {
-      const query = options.search.toLowerCase();
-      filtered = filtered.filter(t =>
-        t.name.toLowerCase().includes(query) ||
-        (t.notes && t.notes.toLowerCase().includes(query))
-      );
+      filters.completed = false;
     }
 
     // Filter by assignee
     if (options.assignee) {
-      const assigneeQuery = options.assignee.toLowerCase();
-      filtered = filtered.filter(t =>
-        t.assignee && t.assignee.toLowerCase().includes(assigneeQuery)
-      );
-    }
-
-    // Filter by agent
-    if (options.agent) {
-      const agentTag = `agent:${options.agent.toLowerCase()}`;
-      filtered = filtered.filter(t =>
-        t.tags && t.tags.some((tag: string) => tag.toLowerCase() === agentTag)
-      );
-    }
-
-    // Filter by due date range
-    if (options.dueFrom) {
-      filtered = filtered.filter(t => t.dueOn && t.dueOn >= options.dueFrom);
-    }
-    if (options.dueTo) {
-      filtered = filtered.filter(t => t.dueOn && t.dueOn <= options.dueTo);
+      filters.assignee = options.assignee;
     }
 
     // Filter by tags
     if (options.tag) {
-      const filterTags = options.tag.split(',').map((t: string) => t.trim().toLowerCase());
-      filtered = filtered.filter(t =>
-        t.tags && t.tags.some((tag: string) =>
-          filterTags.some((filterTag: string) => tag.toLowerCase().includes(filterTag))
-        )
-      );
+      filters.tags = options.tag.split(',').map((t: string) => t.trim());
+    }
+
+    // Add agent tag to filter tags
+    if (options.agent) {
+      const agentTag = `agent:${options.agent}`;
+      if (filters.tags) {
+        filters.tags.push(agentTag);
+      } else {
+        filters.tags = [agentTag];
+      }
+    }
+
+    // Filter by due date range
+    if (options.dueFrom) {
+      filters.dueAfter = options.dueFrom;
+    }
+    if (options.dueTo) {
+      filters.dueBefore = options.dueTo;
     }
 
     // Filter by priority
@@ -229,10 +503,18 @@ Examples:
         console.error('✗ Invalid priority. Must be: low, medium, or high');
         process.exit(1);
       }
-      filtered = filtered.filter(t => t.priority === priorityLevel);
+      filters.priority = priorityLevel as 'low' | 'medium' | 'high';
     }
 
-    return filtered;
+    // Add search query as custom filter
+    if (options.search) {
+      const query = options.search.toLowerCase();
+      filters.customFilter = (task: Backends.Task): boolean =>
+        task.name.toLowerCase().includes(query) ||
+        (task.notes ? task.notes.toLowerCase().includes(query) : false);
+    }
+
+    return filters;
   }
 
   /**
@@ -244,38 +526,17 @@ Examples:
    */
   private async exportCSV(filename: string, options: any): Promise<void> {
     try {
-      const backend = this.getBackend();
-      const tasks = await backend.listTasks();
-      const filtered = this.applyFilters(tasks, options);
+      const backend = BackendProvider.getInstance().getExportBackend();
+      const filters = this.buildFilters(options);
 
-      if (filtered.length === 0) {
+      const count = await backend.exportToCSV(filename, filters);
+
+      if (count === 0) {
         console.log('⚠ No tasks found matching criteria. No file created.');
         return;
       }
 
-      // Build CSV content
-      const headers = ['ID', 'Name', 'Status', 'Priority', 'Due Date', 'Assignee', 'Tags', 'Notes', 'Subtasks'];
-      const rows = filtered.map(task => [
-        task.gid,
-        this.escapeCsv(task.name),
-        task.completed ? 'Completed' : 'Incomplete',
-        task.priority || '',
-        task.dueOn || '',
-        task.assignee || '',
-        task.tags ? this.escapeCsv(task.tags.join('; ')) : '',
-        task.notes ? this.escapeCsv(task.notes) : '',
-        task.numSubtasks || '0'
-      ]);
-
-      const csv = [
-        headers.join(','),
-        ...rows.map(row => row.join(','))
-      ].join('\n');
-
-      // Write to file
-      fs.writeFileSync(filename, csv, 'utf-8');
-
-      console.log(`\n✓ Exported ${filtered.length} task(s) to ${filename}`);
+      console.log(`\n✓ Exported ${count} task(s) to ${filename}`);
       console.log(`  Format: CSV`);
       console.log();
     } catch (error) {
@@ -293,24 +554,17 @@ Examples:
    */
   private async exportJSON(filename: string, options: any): Promise<void> {
     try {
-      const backend = this.getBackend();
-      const tasks = await backend.listTasks();
-      const filtered = this.applyFilters(tasks, options);
+      const backend = BackendProvider.getInstance().getExportBackend();
+      const filters = this.buildFilters(options);
 
-      if (filtered.length === 0) {
+      const count = await backend.exportToJSON(filename, filters);
+
+      if (count === 0) {
         console.log('⚠ No tasks found matching criteria. No file created.');
         return;
       }
 
-      const data = {
-        exportDate: new Date().toISOString(),
-        taskCount: filtered.length,
-        tasks: filtered
-      };
-
-      fs.writeFileSync(filename, JSON.stringify(data, null, 2), 'utf-8');
-
-      console.log(`\n✓ Exported ${filtered.length} task(s) to ${filename}`);
+      console.log(`\n✓ Exported ${count} task(s) to ${filename}`);
       console.log(`  Format: JSON`);
       console.log();
     } catch (error) {
@@ -328,96 +582,22 @@ Examples:
    */
   private async exportMarkdown(filename: string, options: any): Promise<void> {
     try {
-      const backend = this.getBackend();
-      const tasks = await backend.listTasks();
-      const filtered = this.applyFilters(tasks, options);
+      const backend = BackendProvider.getInstance().getExportBackend();
+      const filters = this.buildFilters(options);
 
-      if (filtered.length === 0) {
+      const count = await backend.exportToMarkdown(filename, filters);
+
+      if (count === 0) {
         console.log('⚠ No tasks found matching criteria. No file created.');
         return;
       }
 
-      // Build Markdown content
-      const lines: string[] = [];
-      lines.push('# Task Export Report');
-      lines.push('');
-      lines.push(`**Export Date:** ${new Date().toLocaleString()}`);
-      lines.push(`**Total Tasks:** ${filtered.length}`);
-      lines.push('');
-
-      // Group by status
-      const incomplete = filtered.filter(t => !t.completed);
-      const completed = filtered.filter(t => t.completed);
-
-      if (incomplete.length > 0) {
-        lines.push('## Incomplete Tasks');
-        lines.push('');
-        incomplete.forEach(task => {
-          const priority = task.priority ? ` [${task.priority.toUpperCase()}]` : '';
-          const due = task.dueOn ? ` (Due: ${task.dueOn})` : '';
-          const assignee = task.assignee ? ` [@${task.assignee}]` : '';
-
-          lines.push(`### ${task.name}${priority}${due}${assignee}`);
-          lines.push('');
-          lines.push(`**ID:** ${task.gid}`);
-          if (task.notes) {
-            lines.push(`**Notes:** ${task.notes}`);
-          }
-          if (task.tags && task.tags.length > 0) {
-            lines.push(`**Tags:** ${task.tags.join(', ')}`);
-          }
-          if (task.numSubtasks && task.numSubtasks > 0) {
-            lines.push(`**Subtasks:** ${task.numSubtasks}`);
-          }
-          lines.push('');
-        });
-      }
-
-      if (completed.length > 0) {
-        lines.push('## Completed Tasks');
-        lines.push('');
-        completed.forEach(task => {
-          const priority = task.priority ? ` [${task.priority.toUpperCase()}]` : '';
-          const assignee = task.assignee ? ` [@${task.assignee}]` : '';
-
-          lines.push(`### ✓ ${task.name}${priority}${assignee}`);
-          lines.push('');
-          lines.push(`**ID:** ${task.gid}`);
-          if (task.notes) {
-            lines.push(`**Notes:** ${task.notes}`);
-          }
-          if (task.tags && task.tags.length > 0) {
-            lines.push(`**Tags:** ${task.tags.join(', ')}`);
-          }
-          lines.push('');
-        });
-      }
-
-      fs.writeFileSync(filename, lines.join('\n'), 'utf-8');
-
-      console.log(`\n✓ Exported ${filtered.length} task(s) to ${filename}`);
+      console.log(`\n✓ Exported ${count} task(s) to ${filename}`);
       console.log(`  Format: Markdown`);
-      console.log(`  Incomplete: ${incomplete.length}, Completed: ${completed.length}`);
       console.log();
     } catch (error) {
       console.error(`✗ Error exporting to Markdown: ${error}`);
       process.exit(1);
     }
-  }
-
-  /**
-   * Escapes a value for CSV format.
-   *
-   * Args:
-   *   value: String to escape.
-   *
-   * Returns:
-   *   Escaped and quoted string.
-   */
-  private escapeCsv(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`;
-    }
-    return value;
   }
 }

@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import { Module } from '../../types';
-import { ConfigManager } from '../../config/manager';
-import { TaskBackend } from './types';
-import { AsanaTaskBackend } from './asana-backend';
+import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
+import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { Backends } from '@digital-minion/lib';
 
 /**
  * Module for listing, filtering, and agent assignment of tasks.
@@ -16,9 +16,41 @@ export class ListModule implements Module {
   name = 'list';
   description = 'Search and filter tasks (primary command for finding work)';
 
+  metadata: CommandMetadata = {
+    name: 'list',
+    alias: 'ls',
+    summary: 'Search and filter tasks across all criteria',
+    description: 'Primary command for finding work and querying tasks. Supports multiple filters that can be combined for precise results. Perfect for agents finding their assigned tasks or specific work items.',
+    options: [
+      { short: '-c', long: '--completed', description: 'Show only completed tasks', takesValue: false },
+      { short: '-i', long: '--incomplete', description: 'Show only incomplete tasks (default behavior)', takesValue: false },
+      { long: '--all', description: 'Show all tasks (both completed and incomplete)', takesValue: false },
+      { short: '-s', long: '--search', description: 'Search tasks by name or notes content', takesValue: true, valueType: 'string', valueName: '<query>' },
+      { short: '-a', long: '--assignee', description: 'Filter by Asana assignee name (for human users)', takesValue: true, valueType: 'string', valueName: '<name>' },
+      { long: '--agent', description: 'Filter by agent assignment tag (e.g., --agent becky finds "agent:becky" tags)', takesValue: true, valueType: 'string', valueName: '<agentName>' },
+      { long: '--due-from', description: 'Filter tasks due from date (YYYY-MM-DD format)', takesValue: true, valueType: 'string', valueName: '<date>' },
+      { long: '--due-to', description: 'Filter tasks due to/before date (YYYY-MM-DD format)', takesValue: true, valueType: 'string', valueName: '<date>' },
+      { long: '--tag', description: 'Filter by tag(s) - comma-separated for OR logic', takesValue: true, valueType: 'string', valueName: '<tags>' },
+      { short: '-p', long: '--priority', description: 'Filter by priority level', takesValue: true, valueType: 'string', valueName: '<level>', validValues: ['low', 'medium', 'high'] }
+    ],
+    examples: [
+      { description: 'All incomplete tasks', command: 'dm list -i' },
+      { description: "Becky's incomplete tasks", command: 'dm list --agent becky -i' },
+      { description: 'High priority incomplete tasks', command: 'dm list --tag "priority:high" -i' },
+      { description: 'Search incomplete tasks for "bug"', command: 'dm list --search "bug" -i' },
+      { description: 'Tasks due by end of year', command: 'dm list --due-to 2025-12-31' },
+      { description: 'Get task list as JSON', command: 'dm -o json list --agent myname -i | jq \'.tasks[]\'' }
+    ],
+    notes: [
+      'Use "dm examples agents" for comprehensive agent workflow examples',
+      'Default behavior shows only incomplete tasks unless --all or --completed is specified'
+    ],
+    relatedCommands: ['assign', 'unassign', 'reassign']
+  };
+
   register(program: Command): void {
     // Main list command for searching/filtering tasks
-    program
+    const listCmd = program
       .command('list')
       .alias('ls')
       .description(`Search and filter tasks across all criteria
@@ -39,8 +71,10 @@ For JSON output (recommended for agents):
   tasks -o json list --agent myname -i | jq '.tasks[]'
 
 TIP: Use "tasks examples agents" for comprehensive agent workflow examples`)
+      .option('--help-json', 'Output command help as JSON')
       .option('-c, --completed', 'Show only completed tasks')
-      .option('-i, --incomplete', 'Show only incomplete tasks (most common for finding work)')
+      .option('-i, --incomplete', 'Show only incomplete tasks (default behavior)')
+      .option('--all', 'Show all tasks (both completed and incomplete)')
       .option('-s, --search <query>', 'Search tasks by name or notes content')
       .option('-a, --assignee <name>', 'Filter by Asana assignee name (for human users)')
       .option('--agent <agentName>', 'Filter by agent assignment tag (e.g., --agent becky finds "agent:becky" tags)')
@@ -51,6 +85,16 @@ TIP: Use "tasks examples agents" for comprehensive agent workflow examples`)
       .action(async (options) => {
         await this.listTasks(options);
       });
+
+    // Override help to support JSON output
+    const originalHelp = listCmd.helpInformation.bind(listCmd);
+    listCmd.helpInformation = () => {
+      const opts = listCmd.opts();
+      if (opts.helpJson) {
+        return renderHelpJson(this.metadata);
+      }
+      return originalHelp();
+    };
 
     // Agent assignment commands at top level
     program
@@ -108,87 +152,49 @@ Example:
       });
   }
 
-  private getBackend(): TaskBackend {
-    const configManager = new ConfigManager();
-    const config = configManager.load();
-
-    if (!config) {
-      console.error('✗ No configuration found. Please run "tasks init" first.');
-      process.exit(1);
-    }
-
-    if (config.backend === 'asana') {
-      if (!config.asana) {
-        console.error('✗ Asana configuration not found. Please run "tasks init" again.');
-        process.exit(1);
-      }
-      return new AsanaTaskBackend(config.asana);
-    } else {
-      console.error('✗ Local backend not yet implemented.');
-      process.exit(1);
-    }
-  }
-
   private async listTasks(options: any): Promise<void> {
     try {
-      const backend = this.getBackend();
-      const tasks = await backend.listTasks();
+      const backend = BackendProvider.getInstance().getListBackend();
 
-      let filteredTasks = tasks;
+      // Build filters from options
+      const filters: Backends.ListFilters = {};
 
       // Filter by completion status
+      // Default to showing only incomplete tasks unless --all or --completed is specified
       if (options.completed) {
-        filteredTasks = filteredTasks.filter(t => t.completed);
-      } else if (options.incomplete) {
-        filteredTasks = filteredTasks.filter(t => !t.completed);
+        filters.completed = true;
+      } else if (!options.all) {
+        // Default behavior: show only incomplete tasks (includes explicit -i flag)
+        filters.completed = false;
       }
 
-      // Search by name
+      // Search by name/notes
       if (options.search) {
-        const query = options.search.toLowerCase();
-        filteredTasks = filteredTasks.filter(t =>
-          t.name.toLowerCase().includes(query) ||
-          (t.notes && t.notes.toLowerCase().includes(query))
-        );
+        filters.query = options.search;
       }
 
       // Filter by assignee
       if (options.assignee) {
-        const assigneeQuery = options.assignee.toLowerCase();
-        filteredTasks = filteredTasks.filter(t =>
-          t.assignee && t.assignee.toLowerCase().includes(assigneeQuery)
-        );
+        filters.assignee = options.assignee;
       }
 
-      // Filter by agent (searches for "agent:agentName" tag)
+      // Filter by agent
       if (options.agent) {
-        const agentTag = `agent:${options.agent.toLowerCase()}`;
-        filteredTasks = filteredTasks.filter(t =>
-          t.tags && t.tags.some((tag: string) => tag.toLowerCase() === agentTag)
-        );
+        filters.agent = options.agent;
       }
 
       // Filter by due date range
       if (options.dueFrom) {
-        filteredTasks = filteredTasks.filter(t =>
-          t.dueOn && t.dueOn >= options.dueFrom
-        );
+        filters.dueAfter = options.dueFrom;
       }
 
       if (options.dueTo) {
-        filteredTasks = filteredTasks.filter(t =>
-          t.dueOn && t.dueOn <= options.dueTo
-        );
+        filters.dueBefore = options.dueTo;
       }
 
       // Filter by tags
       if (options.tag) {
-        const filterTags = options.tag.split(',').map((t: string) => t.trim().toLowerCase());
-        filteredTasks = filteredTasks.filter(t =>
-          t.tags && t.tags.some((tag: string) =>
-            filterTags.some((filterTag: string) => tag.toLowerCase().includes(filterTag))
-          )
-        );
+        filters.tags = options.tag.split(',').map((t: string) => t.trim());
       }
 
       // Filter by priority
@@ -203,8 +209,10 @@ Example:
           }
           process.exit(1);
         }
-        filteredTasks = filteredTasks.filter(t => t.priority === priorityLevel);
+        filters.priority = priorityLevel as 'low' | 'medium' | 'high';
       }
+
+      const filteredTasks = await backend.listTasks(filters);
 
       if (filteredTasks.length === 0) {
         if (OutputFormatter.isJson()) {
@@ -255,25 +263,14 @@ Example:
 
   private async assignTaskCmd(taskId: string, agentName: string): Promise<void> {
     try {
-      const backend = this.getBackend();
-      const tagName = `agent:${agentName}`;
-
-      // Check if tag already exists, create if not
-      const tags = await backend.listTags();
-      let agentTag = tags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
-
-      if (!agentTag) {
-        agentTag = await backend.createTag(tagName);
-      }
-
-      // Add tag to task
-      await backend.addTagToTask(taskId, agentTag.gid);
+      const backend = BackendProvider.getInstance().getListBackend();
+      const task = await backend.assignAgent(taskId, agentName);
 
       if (OutputFormatter.isJson()) {
-        OutputFormatter.print({ taskId, agent: agentName, tag: agentTag.name });
+        OutputFormatter.print({ taskId, agent: agentName, task });
       } else {
         console.log(`\n✓ Task assigned to agent "${agentName}"`);
-        console.log(`  Tag added: ${agentTag.name}`);
+        console.log(`  Tag added: agent:${agentName}`);
         console.log();
       }
     } catch (error) {
@@ -283,37 +280,13 @@ Example:
 
   private async unassignTaskCmd(taskId: string): Promise<void> {
     try {
-      const backend = this.getBackend();
-      const task = await backend.getTask(taskId);
-
-      // Find all "agent:*" tags
-      const agentTags = task.tags?.filter(tagName => tagName.toLowerCase().startsWith('agent:')) || [];
-
-      if (agentTags.length === 0) {
-        if (OutputFormatter.isJson()) {
-          OutputFormatter.print({ taskId, message: 'No agent assignment found' });
-        } else {
-          console.log('\n⚠ Task is not assigned to any agent');
-          console.log();
-        }
-        return;
-      }
-
-      // Get all tags to find GIDs
-      const allTags = await backend.listTags();
-
-      for (const agentTagName of agentTags) {
-        const tag = allTags.find(t => t.name.toLowerCase() === agentTagName.toLowerCase());
-        if (tag) {
-          await backend.removeTagFromTask(taskId, tag.gid);
-        }
-      }
+      const backend = BackendProvider.getInstance().getListBackend();
+      const task = await backend.unassignAgent(taskId);
 
       if (OutputFormatter.isJson()) {
-        OutputFormatter.print({ taskId, removedTags: agentTags });
+        OutputFormatter.print({ taskId, task });
       } else {
         console.log(`\n✓ Task unassigned from agent`);
-        console.log(`  Removed tags: ${agentTags.join(', ')}`);
         console.log();
       }
     } catch (error) {
@@ -323,9 +296,15 @@ Example:
 
   private async reassignTaskCmd(taskId: string, agentName: string): Promise<void> {
     try {
-      // First unassign, then assign to new agent
-      await this.unassignTaskCmd(taskId);
-      await this.assignTaskCmd(taskId, agentName);
+      const backend = BackendProvider.getInstance().getListBackend();
+      const task = await backend.reassignAgent(taskId, agentName);
+
+      if (OutputFormatter.isJson()) {
+        OutputFormatter.print({ taskId, agent: agentName, task });
+      } else {
+        console.log(`\n✓ Task reassigned to agent "${agentName}"`);
+        console.log();
+      }
     } catch (error) {
       OutputFormatter.error(`Error reassigning task: ${error}`);
     }

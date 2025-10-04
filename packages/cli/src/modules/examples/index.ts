@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { Module } from '../../types';
+import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
 
 /**
  * Module for displaying usage examples and best practices.
@@ -12,10 +13,146 @@ export class ExamplesModule implements Module {
   name = 'examples';
   description = 'Show usage examples and best practices';
 
+  metadata: CommandMetadata = {
+    name: 'examples',
+    summary: 'Show usage examples and best practices',
+    description: `Provides interactive help with comprehensive examples for JSON output, automation, filtering, and agent workflows. Helps users understand advanced CLI features and scripting patterns.`,
+    subcommands: [
+      {
+        name: 'json',
+        summary: 'Show JSON output examples',
+        description: 'Demonstrates how to use JSON output for programmatic consumption, data extraction, and command chaining.',
+        examples: [
+          {
+            description: 'Get all task IDs',
+            command: 'dm -o json list show | jq -r \'.tasks[].gid\''
+          },
+          {
+            description: 'Create task and immediately add tags',
+            command: 'TASK_ID=$(dm -o json task add "My task" | jq -r \'.task.gid\'); dm tag add $TASK_ID "module:list"'
+          }
+        ]
+      },
+      {
+        name: 'automation',
+        summary: 'Show automation and scripting examples',
+        description: 'Shows batch operations, data analysis, AI agent integration, and reporting examples.',
+        examples: [
+          {
+            description: 'Complete all tasks with specific tag',
+            command: 'for id in $(dm -o json list -i --tag "urgent" | jq -r \'.tasks[].gid\'); do dm task complete "$id"; done'
+          },
+          {
+            description: 'Daily task summary report',
+            command: 'echo "Total: $(dm -o json list | jq \'.count\')"; echo "Incomplete: $(dm -o json list -i | jq \'.count\')"'
+          }
+        ]
+      },
+      {
+        name: 'filtering',
+        summary: 'Show task filtering examples',
+        description: 'Demonstrates filtering by status, tags, priority, assignee, due dates, and combining multiple filters.',
+        examples: [
+          {
+            description: 'Filter incomplete tasks by tag',
+            command: 'dm list -i --tag "feature,module:list"'
+          },
+          {
+            description: 'Search for bugs due this week',
+            command: 'dm list --search "bug" --due-to 2025-01-07'
+          },
+          {
+            description: 'High priority tasks for specific assignee',
+            command: 'dm list --priority high --assignee "austin"'
+          }
+        ]
+      },
+      {
+        name: 'agents',
+        summary: 'Show agent assignment and workflow examples',
+        description: 'Explains agent assignment using tags, finding agent tasks, workflows, and multi-agent coordination.',
+        examples: [
+          {
+            description: 'Assign task to agent',
+            command: 'dm assign 1234567890 becky'
+          },
+          {
+            description: 'Find agent\'s incomplete tasks',
+            command: 'dm list --agent becky -i'
+          },
+          {
+            description: 'Agent self-assignment workflow',
+            command: 'AGENT_NAME="becky"; dm assign 1234567890 $AGENT_NAME'
+          },
+          {
+            description: 'Find unassigned tasks',
+            command: 'dm -o json list -i | jq -r \'.tasks[] | select(.tags | all(startswith("agent:") | not)) | "[\\(.gid)] \\(.name)"\''
+          }
+        ]
+      },
+      {
+        name: 'export',
+        summary: 'Show export examples for CSV, JSON, and Markdown',
+        description: 'Demonstrates exporting tasks to CSV, JSON, and Markdown formats for backup, reporting, and integration.',
+        examples: [
+          {
+            description: 'Export all tasks to CSV',
+            command: 'dm export csv all-tasks.csv'
+          },
+          {
+            description: 'Export incomplete tasks to JSON',
+            command: 'dm export json incomplete.json -i'
+          },
+          {
+            description: 'Export high priority tasks to Markdown',
+            command: 'dm export md priorities.md --priority high -i'
+          },
+          {
+            description: 'Daily backup with date',
+            command: 'dm export json "backup-$(date +%Y-%m-%d).json"'
+          }
+        ]
+      },
+      {
+        name: 'all',
+        summary: 'Show all examples',
+        description: 'Displays all example categories in sequence.',
+        examples: [
+          {
+            description: 'View all examples',
+            command: 'dm examples all'
+          }
+        ]
+      }
+    ],
+    notes: [
+      'Use -o json flag for programmatic consumption',
+      'Combine filters for precise task queries',
+      'Agent assignments use "agent:" tag prefix',
+      'Export formats: CSV (spreadsheets), JSON (processing), Markdown (reports)',
+      'Use jq for JSON parsing and transformation',
+      'Batch operations enable workflow automation',
+      'All export commands support same filters as list command'
+    ]
+  };
+
   register(program: Command): void {
     const examplesCmd = program
       .command('examples')
       .description('Show usage examples and best practices');
+
+    // Add metadata help support
+    examplesCmd.option('--help-json', 'Output command help as JSON');
+
+    // Override help to support JSON output
+    const originalHelp = examplesCmd.helpInformation.bind(examplesCmd);
+    examplesCmd.helpInformation = () => {
+      const opts = examplesCmd.opts();
+      if (opts.helpJson) {
+        return renderHelpJson(this.metadata);
+      }
+      return originalHelp();
+    };
 
     examplesCmd
       .command('json')

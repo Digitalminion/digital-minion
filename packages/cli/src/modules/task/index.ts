@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import { Module } from '../../types';
-import { ConfigManager } from '../../config/manager';
-import { TaskBackend } from '../list/types';
-import { AsanaTaskBackend } from '../list/asana-backend';
+import { BackendProvider } from '../../backend-provider';
+import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
+import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
 
 /**
  * Module for individual task CRUD operations.
@@ -16,9 +16,109 @@ export class TaskModule implements Module {
   name = 'task';
   description = 'Create, update, and manage individual tasks (CRUD operations)';
 
+  metadata: CommandMetadata = {
+    name: 'task',
+    alias: 'tk',
+    summary: 'Create, update, and manage individual tasks (CRUD operations)',
+    description: `Complete CRUD operations for task lifecycle management. Use these commands to create new work items, update existing tasks, mark work complete, or remove tasks entirely.`,
+    subcommands: [
+      {
+        name: 'add',
+        summary: 'Create a new task',
+        description: 'Creates a new task in the project. Returns the task GID which you can use for further operations (assign, tag, update, etc.).',
+        arguments: [
+          { name: 'name', required: true, type: 'string', description: 'Task name/title' }
+        ],
+        options: [
+          { short: '-n', long: '--notes', description: 'Detailed description or notes', takesValue: true, valueType: 'string', valueName: '<notes>' },
+          { short: '-d', long: '--due', description: 'Due date in YYYY-MM-DD format', takesValue: true, valueType: 'string', valueName: '<date>' },
+          { short: '-p', long: '--priority', description: 'Set priority', takesValue: true, valueType: 'string', valueName: '<level>', validValues: ['low', 'medium', 'high'] },
+          { short: '-m', long: '--milestone', description: 'Mark as milestone', takesValue: false },
+          { long: '--tags', description: 'Comma-separated tag names to add (tags must exist)', takesValue: true, valueType: 'string', valueName: '<tags>' }
+        ],
+        examples: [
+          { description: 'Create a simple task', command: 'dm task add "Implement login feature"' },
+          { description: 'Create task with details', command: 'dm task add "Fix bug #123" --notes "User reported crash" --due 2025-12-31' },
+          { description: 'Create task with tags', command: 'dm task add "Review PR" --tags "priority:high,review"' },
+          { description: 'Create and assign immediately', command: 'TASK_ID=$(dm -o json task add "My task" | jq -r \'.task.gid\') && dm assign $TASK_ID myname' }
+        ]
+      },
+      {
+        name: 'update',
+        summary: 'Update an existing task',
+        description: 'Modify task properties like name, notes, due date, priority, or add tags. Only updates the fields you specify - other fields remain unchanged.',
+        arguments: [
+          { name: 'taskId', required: true, type: 'string', description: 'The task GID to update' }
+        ],
+        options: [
+          { short: '-t', long: '--title', description: 'New task name/title', takesValue: true, valueType: 'string', valueName: '<title>' },
+          { long: '--notes', description: 'New task notes/description', takesValue: true, valueType: 'string', valueName: '<notes>' },
+          { short: '-d', long: '--due', description: 'New due date (YYYY-MM-DD)', takesValue: true, valueType: 'string', valueName: '<date>' },
+          { short: '-p', long: '--priority', description: 'Set priority', takesValue: true, valueType: 'string', valueName: '<level>', validValues: ['low', 'medium', 'high'] },
+          { short: '-m', long: '--milestone', description: 'Mark as milestone', takesValue: false },
+          { long: '--no-milestone', description: 'Unmark as milestone', takesValue: false },
+          { long: '--tags', description: 'Comma-separated tag names to ADD (doesn\'t remove existing)', takesValue: true, valueType: 'string', valueName: '<tags>' }
+        ],
+        examples: [
+          { description: 'Update task title', command: 'dm task update 1234567890 --title "New name"' },
+          { description: 'Update due date', command: 'dm task update 1234567890 --due 2025-12-31' },
+          { description: 'Set priority', command: 'dm task update 1234567890 --priority high' },
+          { description: 'Add tags', command: 'dm task update 1234567890 --tags "urgent,reviewed"' }
+        ]
+      },
+      {
+        name: 'delete',
+        alias: 'rm',
+        summary: 'Delete a task permanently',
+        description: 'Permanently removes a task. This cannot be undone. Use with caution.',
+        arguments: [
+          { name: 'taskId', required: true, type: 'string', description: 'The task GID to delete' }
+        ],
+        examples: [
+          { description: 'Delete a task', command: 'dm task delete 1234567890' }
+        ],
+        notes: ['This is permanent and cannot be undone']
+      },
+      {
+        name: 'complete',
+        summary: 'Mark a task as complete',
+        description: 'Marks a task as completed. This is the standard way to indicate work is done.',
+        arguments: [
+          { name: 'taskId', required: true, type: 'string', description: 'The task GID to complete' }
+        ],
+        examples: [
+          { description: 'Complete a task', command: 'dm task complete 1234567890' },
+          { description: 'Complete and find next task', command: 'dm task complete 1234567890 && NEXT=$(dm -o json list --agent myname -i | jq -r \'.tasks[0].gid\')' }
+        ]
+      },
+      {
+        name: 'get',
+        summary: 'Get detailed information about a specific task',
+        description: 'Retrieves all details about a task including name, notes, due date, tags, section, assignee, and subtask count.',
+        arguments: [
+          { name: 'taskId', required: true, type: 'string', description: 'The task GID to fetch' }
+        ],
+        examples: [
+          { description: 'Get task details', command: 'dm task get 1234567890' },
+          { description: 'Get task as JSON', command: 'dm -o json task get 1234567890 | jq \'.task\'' }
+        ],
+        notes: [
+          'Useful for checking task details before working on it',
+          'Verifying task state after updates',
+          'Getting full context in JSON for processing'
+        ]
+      }
+    ],
+    notes: [
+      'For complex work, break tasks into subtasks with "dm subtask add"',
+      'Use JSON output mode (-o json) for scripting and automation'
+    ]
+  };
+
   register(program: Command): void {
     const taskCmd = program
       .command('task')
+      .alias('tk')
       .description(`Create, update, and manage individual tasks
 
 Complete CRUD operations for task lifecycle management. Use these commands
@@ -32,6 +132,19 @@ Common workflow:
   4. Complete it:  tasks task complete <taskId>
 
 TIP: For complex work, break tasks into subtasks with "tasks subtask add"`);
+
+    // Add metadata help support
+    taskCmd.option('--help-json', 'Output command help as JSON');
+
+    // Override help to support JSON output
+    const originalHelp = taskCmd.helpInformation.bind(taskCmd);
+    taskCmd.helpInformation = () => {
+      const opts = taskCmd.opts();
+      if (opts.helpJson) {
+        return renderHelpJson(this.metadata);
+      }
+      return originalHelp();
+    };
 
     // Add a new task
     taskCmd
@@ -55,6 +168,7 @@ Examples:
   tasks task add "Fix bug #123" --notes "User reported crash" --due 2025-12-31
   tasks task add "Review PR" --tags "priority:high,review"
   tasks task add "Critical fix" --priority high --due 2025-12-31
+  tasks task add "v2.0 Release" --milestone --due 2025-12-31
 
 TIP: Create task, then immediately assign:
   TASK_ID=$(tasks -o json task add "My task" | jq -r '.task.gid')
@@ -62,6 +176,7 @@ TIP: Create task, then immediately assign:
       .option('-n, --notes <notes>', 'Task notes/description')
       .option('-d, --due <date>', 'Due date (YYYY-MM-DD)')
       .option('-p, --priority <level>', 'Set priority (low, medium, high)')
+      .option('-m, --milestone', 'Mark as milestone')
       .option('--tags <tags>', 'Comma-separated list of tag names (must already exist)')
       .action(async (name, options) => {
         await this.addTask(name, options);
@@ -83,17 +198,22 @@ Options:
   --notes <notes>          - New task notes/description
   -d, --due <date>         - New due date (YYYY-MM-DD)
   -p, --priority <level>   - Set priority (low, medium, high)
+  -m, --milestone          - Mark as milestone
+  --no-milestone           - Unmark as milestone
   --tags <tags>            - Comma-separated tag names to ADD (doesn't remove existing)
 
 Examples:
   tasks task update 1234567890 --title "New name"
   tasks task update 1234567890 --due 2025-12-31
   tasks task update 1234567890 --priority high
+  tasks task update 1234567890 --milestone
   tasks task update 1234567890 --tags "urgent,reviewed"`)
       .option('-t, --title <title>', 'New task name')
       .option('--notes <notes>', 'New task notes')
       .option('-d, --due <date>', 'New due date (YYYY-MM-DD)')
       .option('-p, --priority <level>', 'Set priority (low, medium, high)')
+      .option('-m, --milestone', 'Mark as milestone')
+      .option('--no-milestone', 'Unmark as milestone')
       .option('--tags <tags>', 'Comma-separated list of tag names to add')
       .action(async (taskId, options) => {
         await this.updateTask(taskId, options);
@@ -163,30 +283,10 @@ Useful for:
       });
   }
 
-  private getBackend(): TaskBackend {
-    const configManager = new ConfigManager();
-    const config = configManager.load();
-
-    if (!config) {
-      console.error('✗ No configuration found. Please run "tasks init" first.');
-      process.exit(1);
-    }
-
-    if (config.backend === 'asana') {
-      if (!config.asana) {
-        console.error('✗ Asana configuration not found. Please run "tasks init" again.');
-        process.exit(1);
-      }
-      return new AsanaTaskBackend(config.asana);
-    } else {
-      console.error('✗ Local backend not yet implemented.');
-      process.exit(1);
-    }
-  }
 
   private async addTask(name: string, options: any): Promise<void> {
     try {
-      const backend = this.getBackend();
+      const backend = BackendProvider.getInstance().getTaskBackend();
 
       // Validate priority if specified
       if (options.priority) {
@@ -201,19 +301,21 @@ Useful for:
         name,
         options.notes,
         options.due,
-        options.priority ? options.priority.toLowerCase() : undefined
+        options.priority ? options.priority.toLowerCase() : undefined,
+        options.milestone || false
       );
 
       // Add tags if specified
       const warnings: string[] = [];
       if (options.tags) {
+        const tagBackend = BackendProvider.getInstance().getTagBackend();
         const tagNames = options.tags.split(',').map((t: string) => t.trim());
-        const allTags = await backend.listTags();
+        const allTags = await tagBackend.listTags();
 
         for (const tagName of tagNames) {
-          const tag = allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+          const tag = allTags.find((t: Backends.Tag) => t.name.toLowerCase() === tagName.toLowerCase());
           if (tag) {
-            await backend.addTagToTask(task.gid, tag.gid);
+            await tagBackend.addTagToTask(task.gid, tag.gid);
           } else {
             warnings.push(`Tag "${tagName}" not found and was not added`);
           }
@@ -239,7 +341,7 @@ Useful for:
 
   private async updateTask(taskId: string, options: any): Promise<void> {
     try {
-      const backend = this.getBackend();
+      const backend = BackendProvider.getInstance().getTaskBackend();
       const updates: any = {};
 
       if (options.title) updates.name = options.title;
@@ -253,9 +355,11 @@ Useful for:
         }
         updates.priority = options.priority.toLowerCase();
       }
+      if (options.milestone) updates.isMilestone = true;
+      if (options.noMilestone) updates.isMilestone = false;
 
       if (Object.keys(updates).length === 0 && !options.tags) {
-        console.error('✗ No updates specified. Use --title, --notes, --due, --priority, or --tags.');
+        console.error('✗ No updates specified. Use --title, --notes, --due, --priority, --milestone, or --tags.');
         process.exit(1);
       }
 
@@ -266,13 +370,14 @@ Useful for:
 
       // Add tags if specified
       if (options.tags) {
+        const tagBackend = BackendProvider.getInstance().getTagBackend();
         const tagNames = options.tags.split(',').map((t: string) => t.trim());
-        const allTags = await backend.listTags();
+        const allTags = await tagBackend.listTags();
 
         for (const tagName of tagNames) {
-          const tag = allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+          const tag = allTags.find((t: Backends.Tag) => t.name.toLowerCase() === tagName.toLowerCase());
           if (tag) {
-            await backend.addTagToTask(taskId, tag.gid);
+            await tagBackend.addTagToTask(taskId, tag.gid);
           } else {
             console.log(`  ⚠ Tag "${tagName}" not found and was not added`);
           }
@@ -295,7 +400,7 @@ Useful for:
 
   private async deleteTask(taskId: string): Promise<void> {
     try {
-      const backend = this.getBackend();
+      const backend = BackendProvider.getInstance().getTaskBackend();
       await backend.deleteTask(taskId);
 
       console.log(`\n✓ Task deleted`);
@@ -308,7 +413,7 @@ Useful for:
 
   private async completeTask(taskId: string): Promise<void> {
     try {
-      const backend = this.getBackend();
+      const backend = BackendProvider.getInstance().getTaskBackend();
       const task = await backend.completeTask(taskId);
 
       console.log(`\n✓ Task completed: ${task.name}`);
@@ -321,7 +426,7 @@ Useful for:
 
   private async getTask(taskId: string): Promise<void> {
     try {
-      const backend = this.getBackend();
+      const backend = BackendProvider.getInstance().getTaskBackend();
       const task = await backend.getTask(taskId);
 
       if (OutputFormatter.isJson()) {

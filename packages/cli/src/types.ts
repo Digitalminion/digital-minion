@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { CommandMetadata } from './types/command-metadata';
 
 /**
  * Interface for CLI modules that provide commands to the application.
@@ -13,6 +14,12 @@ export interface Module {
 
   /** Human-readable description of the module's functionality. */
   description: string;
+
+  /**
+   * Structured metadata for the module's commands.
+   * Optional - if provided, enables --help-json output.
+   */
+  metadata?: CommandMetadata;
 
   /**
    * Registers the module's commands with the Commander program.

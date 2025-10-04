@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import { Module } from '../../types';
-import { ConfigManager } from '../../config/manager';
-import { TaskBackend } from '../list/types';
-import { AsanaTaskBackend } from '../list/asana-backend';
+import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
+import { CommandMetadata, renderHelpJson, renderHelpText } from '../../types/command-metadata';
+import { Backends } from '@digital-minion/lib';
 
 /**
  * Module for task comment management.
@@ -15,9 +15,93 @@ export class CommentModule implements Module {
   name = 'comment';
   description = 'Add and view comments on tasks';
 
+  metadata: CommandMetadata = {
+    name: 'comment',
+    alias: 'cm',
+    summary: 'Add and view comments on tasks',
+    description: `Comments provide a way to discuss tasks, ask questions, provide updates, and
+document decisions without modifying the task description.`,
+    subcommands: [
+      {
+        name: 'list',
+        alias: 'ls',
+        summary: 'List all comments on a task',
+        description: 'Shows all comments in chronological order with author and timestamp information.',
+        arguments: [
+          {
+            name: 'taskId',
+            required: true,
+            type: 'string',
+            description: 'The task GID to view comments for'
+          }
+        ],
+        examples: [
+          {
+            description: 'List all comments on a task',
+            command: 'dm comment list 1234567890'
+          },
+          {
+            description: 'List comments and parse as JSON',
+            command: 'dm -o json comment list 1234567890 | jq \'.comments[]\''
+          }
+        ],
+        notes: [
+          'Reviewing discussion history',
+          'Finding previous decisions',
+          'Catching up on task progress',
+          'Understanding context'
+        ]
+      },
+      {
+        name: 'add',
+        summary: 'Add a comment to a task',
+        description: 'Creates a new comment on the specified task. The comment will be attributed to the current Asana user (configured during init).',
+        arguments: [
+          {
+            name: 'taskId',
+            required: true,
+            type: 'string',
+            description: 'The task GID to comment on'
+          },
+          {
+            name: 'text',
+            required: true,
+            type: 'string',
+            description: 'Comment text content'
+          }
+        ],
+        examples: [
+          {
+            description: 'Add a simple comment',
+            command: 'dm comment add 1234567890 "Started working on this"'
+          },
+          {
+            description: 'Add a status update comment',
+            command: 'dm comment add 1234567890 "Blocked by API rate limits"'
+          },
+          {
+            description: 'Add a completion comment',
+            command: 'dm comment add 1234567890 "Completed testing, ready for review"'
+          }
+        ],
+        notes: [
+          'Use quotes around comment text to handle spaces and special characters'
+        ]
+      }
+    ],
+    notes: [
+      'Progress updates: Share status without changing task fields',
+      'Questions: Ask for clarification from team members',
+      'Decisions: Document why certain approaches were chosen',
+      'Collaboration: Discuss implementation details',
+      'Comments are displayed chronologically with author and timestamp information'
+    ]
+  };
+
   register(program: Command): void {
     const commentCmd = program
       .command('comment')
+      .alias('cm')
       .description(`Add and view comments on tasks
 
 Comments provide a way to discuss tasks, ask questions, provide updates, and
@@ -30,6 +114,19 @@ Use cases:
   - Collaboration: Discuss implementation details
 
 Comments are displayed chronologically with author and timestamp information.`);
+
+    // Add metadata help support
+    commentCmd.option('--help-json', 'Output command help as JSON');
+
+    // Override help to support JSON output
+    const originalHelp = commentCmd.helpInformation.bind(commentCmd);
+    commentCmd.helpInformation = () => {
+      const opts = commentCmd.opts();
+      if (opts.helpJson) {
+        return renderHelpJson(this.metadata);
+      }
+      return originalHelp();
+    };
 
     commentCmd
       .command('list <taskId>')
@@ -80,25 +177,8 @@ TIP: Use quotes around comment text to handle spaces and special characters`)
       });
   }
 
-  private getBackend(): TaskBackend {
-    const configManager = new ConfigManager();
-    const config = configManager.load();
-
-    if (!config) {
-      console.error('✗ No configuration found. Please run "tasks init" first.');
-      process.exit(1);
-    }
-
-    if (config.backend === 'asana') {
-      if (!config.asana) {
-        console.error('✗ Asana configuration not found. Please run "tasks init" again.');
-        process.exit(1);
-      }
-      return new AsanaTaskBackend(config.asana);
-    } else {
-      console.error('✗ Local backend not yet implemented.');
-      process.exit(1);
-    }
+  private getBackend() {
+    return BackendProvider.getInstance().getCommentBackend();
   }
 
   private async listCommentsCmd(taskId: string): Promise<void> {
