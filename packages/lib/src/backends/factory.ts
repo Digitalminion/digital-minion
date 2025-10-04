@@ -75,13 +75,14 @@ export class BackendFactory {
   // Individual Backend Creation Methods
   // ============================================================================
 
-  static createConfigBackend(backendType: BackendType): IConfigBackend {
+  static createConfigBackend(backendType: BackendType, accessToken?: string): IConfigBackend {
     switch (backendType) {
       case 'asana':
         const { AsanaConfigBackend } = require('./asana');
-        // Note: AsanaConfigBackend constructor only needs accessToken
-        // This will be handled by the caller
-        throw new Error('AsanaConfigBackend requires accessToken in constructor - use new AsanaConfigBackend(accessToken) directly');
+        if (!accessToken) {
+          throw new Error('AsanaConfigBackend requires accessToken parameter');
+        }
+        return new AsanaConfigBackend(accessToken);
       case 'local':
         throw new Error('Local config backend not yet implemented');
       default:
@@ -272,7 +273,7 @@ export class BackendFactory {
    */
   static createAllBackends(config: MinionConfig): AllBackends {
     return {
-      config: this.createConfigBackend(config.backend),
+      config: this.createConfigBackend(config.backend, config.config?.accessToken),
       task: this.createTaskBackend(config),
       tag: this.createTagBackend(config),
       section: this.createSectionBackend(config),
