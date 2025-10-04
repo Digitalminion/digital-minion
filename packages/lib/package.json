@@ -2,10 +2,11 @@
   "name": "@digital-minion/lib",
   "version": "1.0.0",
   "description": "Core library for Digital Minion task management",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/digital-minion-lib.js",
+  "types": "dist/digital-minion-lib.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "node build.js",
+    "build:prod": "cross-env NODE_ENV=production node build.js",
     "clean": "rimraf ./dist",
     "dev": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -29,12 +30,13 @@
   "bugs": {
     "url": "https://github.com/Digitalminion/digital-minion/issues"
   },
-  "dependencies": {
-    "asana": "^3.1.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/asana": "^0.18.16",
     "@types/node": "^20.0.0",
+    "cross-env": "^7.0.3",
+    "esbuild": "^0.19.0",
+    "rimraf": "^5.0.0",
     "typescript": "^5.3.0"
   },
   "engines": {

@@ -1,11 +1,11 @@
 {
   "name": "@digital-minion/cli",
-  "version": "1.3.4",
+  "version": "1.4.1",
   "description": "Task Management CLI for Teams and AI Agents - A modular CLI for managing tasks in Asana projects",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/digital-minion-cli.js",
+  "types": "dist/digital-minion-cli.d.ts",
   "bin": {
-    "dm": "dist/index.js"
+    "dm": "dist/digital-minion-cli.js"
   },
   "scripts": {
     "build": "node build.js",
@@ -39,12 +39,10 @@
   },
   "dependencies": {
     "@digital-minion/lib": "^1.0.0",
-    "asana": "^3.1.2",
     "commander": "^14.0.1",
     "prompts": "^2.4.2"
   },
   "devDependencies": {
-    "@types/asana": "^0.18.16",
     "@types/node": "^20.0.0",
     "@types/prompts": "^2.4.9",
     "cross-env": "^7.0.3",

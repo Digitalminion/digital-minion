@@ -30,7 +30,7 @@ async function build() {
     const buildOptions = {
       entryPoints: ['src/index.ts'],
       bundle: true,
-      outfile: 'dist/index.js',
+      outfile: 'dist/digital-minion-cli.js',
       platform: 'node',
       target: 'node18',
       format: 'cjs',
@@ -49,19 +49,37 @@ async function build() {
       await esbuild.build(buildOptions);
 
       // Add shebang and make the output file executable
-      const outFile = path.join(__dirname, 'dist', 'index.js');
+      const outFile = path.join(__dirname, 'dist', 'digital-minion-cli.js');
       if (fs.existsSync(outFile)) {
         const content = fs.readFileSync(outFile, 'utf8');
         fs.writeFileSync(outFile, '#!/usr/bin/env node\n' + content);
         fs.chmodSync(outFile, 0o755);
       }
 
+      // Copy LICENSE, README.md, and package.json to dist
+      const licensePath = path.join(__dirname, 'LICENSE');
+      const readmePath = path.join(__dirname, 'README.md');
+      const packagePath = path.join(__dirname, 'package.json');
+
+      if (fs.existsSync(licensePath)) {
+        fs.copyFileSync(licensePath, path.join(distDir, 'LICENSE'));
+      }
+
+      if (fs.existsSync(readmePath)) {
+        fs.copyFileSync(readmePath, path.join(distDir, 'README.md'));
+      }
+
+      if (fs.existsSync(packagePath)) {
+        fs.copyFileSync(packagePath, path.join(distDir, 'package.json'));
+      }
+
       const stats = fs.statSync(outFile);
       const sizeInKB = (stats.size / 1024).toFixed(2);
 
       console.log('✅ Build complete!');
-      console.log(`   Output: dist/index.js (${sizeInKB} KB)`);
+      console.log(`   Output: dist/digital-minion-cli.js (${sizeInKB} KB)`);
       console.log(`   Minified: ${isProduction ? 'yes' : 'no'}`);
+      console.log(`   Copied: LICENSE, README.md, package.json`);
     }
   } catch (error) {
     console.error('❌ Build failed:', error);

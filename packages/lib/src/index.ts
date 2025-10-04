@@ -12,15 +12,15 @@
  *
  * Usage:
  * ```typescript
- * import { ITaskBackend, BackendFactory } from '@digital-minion/lib';
- * // or
- * import * as Backends from '@digital-minion/lib/backends';
+ * import { Backends } from '@digital-minion/lib';
+ * const backends = Backends.BackendFactory.createAllBackends(config);
  * ```
  */
 
-export * from './types';
-export * from './client';
+// Export legacy types and client (for backwards compatibility)
+export { TaskPriority, TaskStatus, Task, TaskFilter } from './types';
+export { DigitalMinionClient } from './client';
 
-// Export backend types separately to avoid conflicts
+// Export all backend abstractions under the Backends namespace
 import * as Backends from './backends';
 export { Backends };

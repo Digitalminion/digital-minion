@@ -37,11 +37,12 @@ export interface ITaskBackend {
    *   notes: Optional task description.
    *   dueOn: Optional due date (YYYY-MM-DD).
    *   priority: Optional priority level (low, medium, high).
+   *   isMilestone: Optional flag to mark as milestone.
    *
    * Returns:
    *   The created Task object.
    */
-  createTask(name: string, notes?: string, dueOn?: string, priority?: string): Promise<Task>;
+  createTask(name: string, notes?: string, dueOn?: string, priority?: string, isMilestone?: boolean): Promise<Task>;
 
   /**
    * Updates an existing task with partial changes.

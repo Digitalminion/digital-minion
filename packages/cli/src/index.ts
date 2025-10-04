@@ -79,7 +79,7 @@ Key Features:
   • Full CRUD operations for tasks
   • Tags, sections, and subtasks for organization
   • JSON output for programmatic consumption${modulesHelp}${quickStartHelp}${jsonHelp}`)
-    .version('1.0.0')
+    .version('1.4.1')
     .option('-o, --output <format>', 'Output format: text (default) or json for automation', 'text');
 
   // Register modules

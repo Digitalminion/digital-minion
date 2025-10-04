@@ -8,7 +8,7 @@
  * Main exports:
  * - 15 domain backend interfaces (ITaskBackend, ITagBackend, etc.)
  * - BackendFactory: Factory for creating backend instances
- * - All data types: Task, Tag, Section, etc. (from core.types)
+ * - All data types: Task, Tag, Section, etc. (from core/types)
  */
 
 // Export all domain backend interfaces
@@ -28,8 +28,25 @@ export { IBatchBackend } from './core/batch-backend';
 export { IExportBackend, ExportFilters } from './core/export-backend';
 export { IListBackend, ListFilters } from './core/list-backend';
 
-// Export all types from core
-export * from './core/types';
+// Export all types from core/types
+export {
+  Task,
+  Tag,
+  Section,
+  Comment,
+  Attachment,
+  CustomField,
+  EnumOption,
+  CustomFieldValue,
+  StatusUpdate,
+  Project,
+  ProjectBrief,
+  ProjectMembership,
+  User,
+  TaskBackend,
+  BatchOperation,
+  BatchResult
+} from './core/types';
 
-// Export factory
+// Export factory and configuration types
 export { BackendFactory, BackendType, MinionConfig, AllBackends } from './factory';
