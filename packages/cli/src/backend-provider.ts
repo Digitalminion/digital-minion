@@ -129,6 +129,14 @@ export class BackendProvider {
     return this.getAllBackends().list;
   }
 
+  getTemplateBackend() {
+    return this.getAllBackends().template;
+  }
+
+  getTimeTrackingBackend() {
+    return this.getAllBackends().timeTracking;
+  }
+
   /**
    * Resets the provider (useful for testing or config changes).
    */

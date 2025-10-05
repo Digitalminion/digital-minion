@@ -25,34 +25,42 @@ export class AsanaListBackend extends AsanaBackendBase implements IListBackend {
 
   async listTasks(filters?: ListFilters): Promise<Task[]> {
     try {
+      // Get all top-level tasks in the project
       const result = await this.tasksApi.getTasksForProject(this.projectId, {
         opt_fields: 'gid,name,notes,completed,due_on,start_on,assignee.name,assignee.gid,tags.name,parent.gid,num_subtasks,memberships.section.name,memberships.section.gid',
       });
 
-      const tasks = result.data.map((task: any) => {
-        const tags = task.tags?.map((tag: any) => tag.name) || [];
-        // Derive priority from priority:* tags
-        const priorityTag = tags.find((t: string) => t.startsWith('priority:'));
-        const priority = priorityTag ? priorityTag.split(':')[1] as ('low' | 'medium' | 'high') : undefined;
+      const topLevelTasks = result.data.map((task: any) => this.mapTaskData(task));
 
-        return {
-          gid: task.gid,
-          name: task.name,
-          notes: task.notes || undefined,
-          completed: task.completed,
-          dueOn: task.due_on || undefined,
-          startOn: task.start_on || undefined,
-          assignee: task.assignee?.name || undefined,
-          assigneeGid: task.assignee?.gid || undefined,
-          tags,
-          parent: task.parent?.gid || undefined,
-          numSubtasks: task.num_subtasks || undefined,
-          memberships: task.memberships || undefined,
-          priority,
-        };
-      });
+      // Also fetch all subtasks if we're filtering by agent or assignee
+      // This ensures subtasks assigned to agents are included in results
+      let allTasks = topLevelTasks;
 
-      return this.applyFilters(tasks, filters);
+      if (filters?.agent || filters?.assignee) {
+        const subtasks: Task[] = [];
+
+        // Fetch subtasks for each parent task that has them
+        for (const task of topLevelTasks) {
+          if (task.numSubtasks && task.numSubtasks > 0) {
+            try {
+              const subtaskResult = await this.tasksApi.getSubtasksForTask(task.gid, {
+                opt_fields: 'gid,name,notes,completed,due_on,start_on,assignee.name,assignee.gid,tags.name,parent.gid,num_subtasks',
+              });
+
+              const taskSubtasks = subtaskResult.data.map((subtask: any) => this.mapTaskData(subtask));
+              subtasks.push(...taskSubtasks);
+            } catch (error) {
+              // Continue if we can't fetch subtasks for a particular task
+              console.error(`Warning: Could not fetch subtasks for task ${task.gid}`);
+            }
+          }
+        }
+
+        // Combine top-level tasks and subtasks
+        allTasks = [...topLevelTasks, ...subtasks];
+      }
+
+      return this.applyFilters(allTasks, filters);
     } catch (error) {
       throw new Error(`Failed to list tasks: ${error}`);
     }
@@ -115,6 +123,38 @@ export class AsanaListBackend extends AsanaBackendBase implements IListBackend {
     } catch (error) {
       throw new Error(`Failed to reassign agent: ${error}`);
     }
+  }
+
+  /**
+   * Maps Asana task data to our Task interface.
+   *
+   * Args:
+   *   task: Raw task data from Asana API.
+   *
+   * Returns:
+   *   Mapped Task object.
+   */
+  private mapTaskData(task: any): Task {
+    const tags = task.tags?.map((tag: any) => tag.name) || [];
+    // Derive priority from priority:* tags
+    const priorityTag = tags.find((t: string) => t.startsWith('priority:'));
+    const priority = priorityTag ? priorityTag.split(':')[1] as ('low' | 'medium' | 'high') : undefined;
+
+    return {
+      gid: task.gid,
+      name: task.name,
+      notes: task.notes || undefined,
+      completed: task.completed,
+      dueOn: task.due_on || undefined,
+      startOn: task.start_on || undefined,
+      assignee: task.assignee?.name || undefined,
+      assigneeGid: task.assignee?.gid || undefined,
+      tags,
+      parent: task.parent?.gid || undefined,
+      numSubtasks: task.num_subtasks || undefined,
+      memberships: task.memberships || undefined,
+      priority,
+    };
   }
 
   /**

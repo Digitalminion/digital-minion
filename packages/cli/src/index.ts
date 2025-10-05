@@ -16,6 +16,8 @@ import { StatusModule } from './modules/status';
 import { ProjectModule } from './modules/project';
 import { UserModule } from './modules/user';
 import { BatchModule } from './modules/batch';
+import { TemplateModule } from './modules/template';
+import { TimeModule } from './modules/time';
 import { OutputFormatter } from './output';
 
 /**
@@ -97,6 +99,8 @@ Key Features:
   registry.register(new StatusModule());
   registry.register(new UserModule());
   registry.register(new BatchModule());
+  registry.register(new TemplateModule());
+  registry.register(new TimeModule());
   registry.register(new ExportModule());
   registry.register(new ExamplesModule());
 

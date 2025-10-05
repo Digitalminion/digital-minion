@@ -13,6 +13,8 @@ import { IUserBackend } from './core/user-backend';
 import { IBatchBackend } from './core/batch-backend';
 import { IExportBackend } from './core/export-backend';
 import { IListBackend } from './core/list-backend';
+import { ITemplateBackend } from './core/template-backend';
+import { ITimeTrackingBackend } from './core/time-tracking-backend';
 
 /**
  * Supported backend types for task storage.
@@ -49,6 +51,8 @@ export interface AllBackends {
   batch: IBatchBackend;
   export: IExportBackend;
   list: IListBackend;
+  template: ITemplateBackend;
+  timeTracking: ITimeTrackingBackend;
 }
 
 /**
@@ -258,6 +262,30 @@ export class BackendFactory {
     }
   }
 
+  static createTemplateBackend(config: MinionConfig): ITemplateBackend {
+    switch (config.backend) {
+      case 'asana':
+        const { AsanaTemplateBackend } = require('./asana');
+        return new AsanaTemplateBackend(config.config);
+      case 'local':
+        throw new Error('Local template backend not yet implemented');
+      default:
+        throw new Error(`Unsupported backend type: ${config.backend}`);
+    }
+  }
+
+  static createTimeTrackingBackend(config: MinionConfig): ITimeTrackingBackend {
+    switch (config.backend) {
+      case 'asana':
+        const { AsanaTimeTrackingBackend } = require('./asana');
+        return new AsanaTimeTrackingBackend(config.config);
+      case 'local':
+        throw new Error('Local time tracking backend not yet implemented');
+      default:
+        throw new Error(`Unsupported backend type: ${config.backend}`);
+    }
+  }
+
   // ============================================================================
   // Convenience Methods
   // ============================================================================
@@ -288,6 +316,8 @@ export class BackendFactory {
       batch: this.createBatchBackend(config),
       export: this.createExportBackend(config),
       list: this.createListBackend(config),
+      template: this.createTemplateBackend(config),
+      timeTracking: this.createTimeTrackingBackend(config),
     };
   }
 

@@ -148,4 +148,72 @@ export class AsanaClient {
       return false;
     }
   }
+
+  /**
+   * Creates a new team in a workspace.
+   *
+   * Args:
+   *   workspaceId: The GID of the workspace to create the team in.
+   *   teamName: The name for the new team.
+   *
+   * Returns:
+   *   The created team object containing GID and name.
+   *
+   * Raises:
+   *   Error: If the API request fails.
+   */
+  async createTeam(workspaceId: string, teamName: string): Promise<AsanaTeam> {
+    try {
+      const result = await this.teamsApi.createTeam({
+        data: {
+          name: teamName,
+          organization: workspaceId,
+        },
+      });
+      return {
+        gid: result.data.gid,
+        name: result.data.name,
+      };
+    } catch (error) {
+      throw new Error(`Failed to create team: ${error}`);
+    }
+  }
+
+  /**
+   * Creates a new project in a workspace or team.
+   *
+   * Args:
+   *   workspaceId: The GID of the workspace to create the project in.
+   *   projectName: The name for the new project.
+   *   teamId: Optional team GID to associate the project with.
+   *
+   * Returns:
+   *   The created project object containing GID and name.
+   *
+   * Raises:
+   *   Error: If the API request fails.
+   */
+  async createProject(workspaceId: string, projectName: string, teamId?: string): Promise<AsanaProject> {
+    try {
+      const projectData: any = {
+        name: projectName,
+        workspace: workspaceId,
+      };
+
+      if (teamId) {
+        projectData.team = teamId;
+      }
+
+      const result = await this.projectsApi.createProject({
+        data: projectData,
+      });
+
+      return {
+        gid: result.data.gid,
+        name: result.data.name,
+      };
+    } catch (error) {
+      throw new Error(`Failed to create project: ${error}`);
+    }
+  }
 }

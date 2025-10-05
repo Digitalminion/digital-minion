@@ -27,6 +27,8 @@ export { IUserBackend } from './core/user-backend';
 export { IBatchBackend } from './core/batch-backend';
 export { IExportBackend, ExportFilters } from './core/export-backend';
 export { IListBackend, ListFilters } from './core/list-backend';
+export { ITemplateBackend, TaskTemplate } from './core/template-backend';
+export { ITimeTrackingBackend, TimeEntry, TaskTimeStats } from './core/time-tracking-backend';
 
 // Export all types from core/types
 export {
@@ -47,6 +49,8 @@ export {
   BatchOperation,
   BatchResult
 } from './core/types';
+
+// Note: TaskTemplate is exported from template-backend above
 
 // Export factory and configuration types
 export { BackendFactory, BackendType, MinionConfig, AllBackends } from './factory';

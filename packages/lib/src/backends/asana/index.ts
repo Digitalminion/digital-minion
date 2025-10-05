@@ -21,3 +21,5 @@ export { AsanaUserBackend } from './asana-user-backend';
 export { AsanaBatchBackend } from './asana-batch-backend';
 export { AsanaExportBackend } from './asana-export-backend';
 export { AsanaListBackend } from './asana-list-backend';
+export { AsanaTemplateBackend } from './asana-template-backend';
+export { AsanaTimeTrackingBackend } from './asana-time-tracking-backend';

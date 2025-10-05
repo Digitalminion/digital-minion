@@ -255,19 +255,22 @@ Commands:
     console.log('Fetching teams...');
     const teams = await client.getTeams(selectedWorkspace.gid);
 
-    if (teams.length === 0) {
-      console.error('✗ No teams found in this workspace.');
-      return;
-    }
+    const teamChoices = [
+      ...teams.map((team) => ({
+        title: team.name,
+        value: team,
+      })),
+      {
+        title: '+ Create new team',
+        value: { gid: 'CREATE_NEW', name: 'CREATE_NEW' },
+      },
+    ];
 
     const teamResponse = await prompts({
       type: 'select',
       name: 'team',
       message: 'Select a team:',
-      choices: teams.map((team) => ({
-        title: team.name,
-        value: team,
-      })),
+      choices: teamChoices,
     });
 
     if (!teamResponse.team) {
@@ -275,26 +278,48 @@ Commands:
       return;
     }
 
-    const selectedTeam = teamResponse.team;
+    let selectedTeam = teamResponse.team;
+
+    if (selectedTeam.gid === 'CREATE_NEW') {
+      const newTeamResponse = await prompts({
+        type: 'text',
+        name: 'teamName',
+        message: 'Enter name for the new team:',
+        validate: (value) => value.trim().length > 0 || 'Team name is required',
+      });
+
+      if (!newTeamResponse.teamName) {
+        console.log('Cancelled.');
+        return;
+      }
+
+      console.log('\nCreating new team...');
+      selectedTeam = await client.createTeam(selectedWorkspace.gid, newTeamResponse.teamName.trim());
+      console.log(`✓ Team created: ${selectedTeam.name}`);
+    }
+
     console.log(`\n✓ Selected team: ${selectedTeam.name}\n`);
 
     // Fetch projects
     console.log('Fetching projects...');
     const projects = await client.getProjects(selectedTeam.gid);
 
-    if (projects.length === 0) {
-      console.error('✗ No projects found in this team.');
-      return;
-    }
+    const projectChoices = [
+      ...projects.map((project) => ({
+        title: project.name,
+        value: project,
+      })),
+      {
+        title: '+ Create new project',
+        value: { gid: 'CREATE_NEW', name: 'CREATE_NEW' },
+      },
+    ];
 
     const projectResponse = await prompts({
       type: 'select',
       name: 'project',
       message: 'Select a project:',
-      choices: projects.map((project) => ({
-        title: project.name,
-        value: project,
-      })),
+      choices: projectChoices,
     });
 
     if (!projectResponse.project) {
@@ -302,7 +327,26 @@ Commands:
       return;
     }
 
-    const selectedProject = projectResponse.project;
+    let selectedProject = projectResponse.project;
+
+    if (selectedProject.gid === 'CREATE_NEW') {
+      const newProjectResponse = await prompts({
+        type: 'text',
+        name: 'projectName',
+        message: 'Enter name for the new project:',
+        validate: (value) => value.trim().length > 0 || 'Project name is required',
+      });
+
+      if (!newProjectResponse.projectName) {
+        console.log('Cancelled.');
+        return;
+      }
+
+      console.log('\nCreating new project...');
+      selectedProject = await client.createProject(selectedWorkspace.gid, newProjectResponse.projectName.trim(), selectedTeam.gid);
+      console.log(`✓ Project created: ${selectedProject.name}`);
+    }
+
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     // Update config
@@ -328,19 +372,22 @@ Commands:
     console.log('Fetching teams...');
     const teams = await client.getTeams(config.asana!.workspaceId);
 
-    if (teams.length === 0) {
-      console.error('✗ No teams found in this workspace.');
-      return;
-    }
+    const teamChoices = [
+      ...teams.map((team) => ({
+        title: team.name,
+        value: team,
+      })),
+      {
+        title: '+ Create new team',
+        value: { gid: 'CREATE_NEW', name: 'CREATE_NEW' },
+      },
+    ];
 
     const teamResponse = await prompts({
       type: 'select',
       name: 'team',
       message: 'Select a team:',
-      choices: teams.map((team) => ({
-        title: team.name,
-        value: team,
-      })),
+      choices: teamChoices,
     });
 
     if (!teamResponse.team) {
@@ -348,26 +395,48 @@ Commands:
       return;
     }
 
-    const selectedTeam = teamResponse.team;
+    let selectedTeam = teamResponse.team;
+
+    if (selectedTeam.gid === 'CREATE_NEW') {
+      const newTeamResponse = await prompts({
+        type: 'text',
+        name: 'teamName',
+        message: 'Enter name for the new team:',
+        validate: (value) => value.trim().length > 0 || 'Team name is required',
+      });
+
+      if (!newTeamResponse.teamName) {
+        console.log('Cancelled.');
+        return;
+      }
+
+      console.log('\nCreating new team...');
+      selectedTeam = await client.createTeam(config.asana!.workspaceId, newTeamResponse.teamName.trim());
+      console.log(`✓ Team created: ${selectedTeam.name}`);
+    }
+
     console.log(`\n✓ Selected team: ${selectedTeam.name}\n`);
 
     // Fetch projects
     console.log('Fetching projects...');
     const projects = await client.getProjects(selectedTeam.gid);
 
-    if (projects.length === 0) {
-      console.error('✗ No projects found in this team.');
-      return;
-    }
+    const projectChoices = [
+      ...projects.map((project) => ({
+        title: project.name,
+        value: project,
+      })),
+      {
+        title: '+ Create new project',
+        value: { gid: 'CREATE_NEW', name: 'CREATE_NEW' },
+      },
+    ];
 
     const projectResponse = await prompts({
       type: 'select',
       name: 'project',
       message: 'Select a project:',
-      choices: projects.map((project) => ({
-        title: project.name,
-        value: project,
-      })),
+      choices: projectChoices,
     });
 
     if (!projectResponse.project) {
@@ -375,7 +444,26 @@ Commands:
       return;
     }
 
-    const selectedProject = projectResponse.project;
+    let selectedProject = projectResponse.project;
+
+    if (selectedProject.gid === 'CREATE_NEW') {
+      const newProjectResponse = await prompts({
+        type: 'text',
+        name: 'projectName',
+        message: 'Enter name for the new project:',
+        validate: (value) => value.trim().length > 0 || 'Project name is required',
+      });
+
+      if (!newProjectResponse.projectName) {
+        console.log('Cancelled.');
+        return;
+      }
+
+      console.log('\nCreating new project...');
+      selectedProject = await client.createProject(config.asana!.workspaceId, newProjectResponse.projectName.trim(), selectedTeam.gid);
+      console.log(`✓ Project created: ${selectedProject.name}`);
+    }
+
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     // Update config
@@ -399,19 +487,22 @@ Commands:
     console.log('Fetching projects...');
     const projects = await client.getProjects(config.asana!.teamId);
 
-    if (projects.length === 0) {
-      console.error('✗ No projects found in this team.');
-      return;
-    }
+    const projectChoices = [
+      ...projects.map((project) => ({
+        title: project.name,
+        value: project,
+      })),
+      {
+        title: '+ Create new project',
+        value: { gid: 'CREATE_NEW', name: 'CREATE_NEW' },
+      },
+    ];
 
     const projectResponse = await prompts({
       type: 'select',
       name: 'project',
       message: 'Select a project:',
-      choices: projects.map((project) => ({
-        title: project.name,
-        value: project,
-      })),
+      choices: projectChoices,
     });
 
     if (!projectResponse.project) {
@@ -419,7 +510,26 @@ Commands:
       return;
     }
 
-    const selectedProject = projectResponse.project;
+    let selectedProject = projectResponse.project;
+
+    if (selectedProject.gid === 'CREATE_NEW') {
+      const newProjectResponse = await prompts({
+        type: 'text',
+        name: 'projectName',
+        message: 'Enter name for the new project:',
+        validate: (value) => value.trim().length > 0 || 'Project name is required',
+      });
+
+      if (!newProjectResponse.projectName) {
+        console.log('Cancelled.');
+        return;
+      }
+
+      console.log('\nCreating new project...');
+      selectedProject = await client.createProject(config.asana!.workspaceId, newProjectResponse.projectName.trim(), config.asana!.teamId);
+      console.log(`✓ Project created: ${selectedProject.name}`);
+    }
+
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     // Update config
@@ -578,11 +688,23 @@ Commands:
       return null;
     }
 
-    const selectedTeam = teamResponse.team;
+    let selectedTeam = teamResponse.team;
 
     if (selectedTeam.gid === 'CREATE_NEW') {
-      console.log('\n⚠ "Create new team" feature is not yet implemented.');
-      return null;
+      const newTeamResponse = await prompts({
+        type: 'text',
+        name: 'teamName',
+        message: 'Enter name for the new team:',
+        validate: (value) => value.trim().length > 0 || 'Team name is required',
+      });
+
+      if (!newTeamResponse.teamName) {
+        return null;
+      }
+
+      console.log('\nCreating new team...');
+      selectedTeam = await client.createTeam(selectedWorkspace.gid, newTeamResponse.teamName.trim());
+      console.log(`✓ Team created: ${selectedTeam.name}`);
     }
 
     console.log(`\n✓ Selected team: ${selectedTeam.name}\n`);
@@ -591,26 +713,47 @@ Commands:
     console.log('Fetching projects...');
     const projects = await client.getProjects(selectedTeam.gid);
 
-    if (projects.length === 0) {
-      console.error('✗ No projects found in this team.');
-      return null;
-    }
+    const projectChoices = [
+      ...projects.map((project) => ({
+        title: project.name,
+        value: project,
+      })),
+      {
+        title: '+ Create new project',
+        value: { gid: 'CREATE_NEW', name: 'CREATE_NEW' },
+      },
+    ];
 
     const projectResponse = await prompts({
       type: 'select',
       name: 'project',
       message: 'Select a project:',
-      choices: projects.map((project) => ({
-        title: project.name,
-        value: project,
-      })),
+      choices: projectChoices,
     });
 
     if (!projectResponse.project) {
       return null;
     }
 
-    const selectedProject = projectResponse.project;
+    let selectedProject = projectResponse.project;
+
+    if (selectedProject.gid === 'CREATE_NEW') {
+      const newProjectResponse = await prompts({
+        type: 'text',
+        name: 'projectName',
+        message: 'Enter name for the new project:',
+        validate: (value) => value.trim().length > 0 || 'Project name is required',
+      });
+
+      if (!newProjectResponse.projectName) {
+        return null;
+      }
+
+      console.log('\nCreating new project...');
+      selectedProject = await client.createProject(selectedWorkspace.gid, newProjectResponse.projectName.trim(), selectedTeam.gid);
+      console.log(`✓ Project created: ${selectedProject.name}`);
+    }
+
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     return {

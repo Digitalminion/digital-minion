@@ -427,10 +427,17 @@ Useful for:
   private async getTask(taskId: string): Promise<void> {
     try {
       const backend = BackendProvider.getInstance().getTaskBackend();
+      const subtaskBackend = BackendProvider.getInstance().getSubtaskBackend();
       const task = await backend.getTask(taskId);
 
+      // Fetch subtasks if the task has any
+      let subtasks: Backends.Task[] = [];
+      if (task.numSubtasks && task.numSubtasks > 0) {
+        subtasks = await subtaskBackend.listSubtasks(taskId);
+      }
+
       if (OutputFormatter.isJson()) {
-        OutputFormatter.print({ task });
+        OutputFormatter.print({ task, subtasks });
       } else {
         const status = task.completed ? '✓' : '○';
         console.log(`\n${status} ${task.name} [${task.gid}]`);
@@ -439,9 +446,15 @@ Useful for:
         if (task.assignee) console.log(`  Assignee: ${task.assignee}`);
         if (task.tags && task.tags.length > 0) console.log(`  Tags: ${task.tags.join(', ')}`);
         if (task.parent) console.log(`  Parent: ${task.parent}`);
-        if (task.numSubtasks && task.numSubtasks > 0) {
-          console.log(`  Subtasks: ${task.numSubtasks}`);
-          console.log(`  💡 TIP: View subtasks with "tasks subtask list ${task.gid}"`);
+
+        if (subtasks.length > 0) {
+          console.log(`\n  Subtasks (${subtasks.length}):`);
+          for (const subtask of subtasks) {
+            const subtaskStatus = subtask.completed ? '✓' : '○';
+            console.log(`    ${subtaskStatus} ${subtask.name} [${subtask.gid}]`);
+            if (subtask.dueOn) console.log(`      Due: ${subtask.dueOn}`);
+            if (subtask.assignee) console.log(`      Assignee: ${subtask.assignee}`);
+          }
         }
         console.log();
       }
