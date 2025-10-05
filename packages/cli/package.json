@@ -1,6 +1,6 @@
 {
   "name": "@digital-minion/cli",
-  "version": "1.4.2",
+  "version": "1.5.2",
   "description": "Task Management CLI for Teams and AI Agents - A modular CLI for managing tasks in Asana projects",
   "main": "dist/digital-minion-cli.js",
   "types": "dist/digital-minion-cli.d.ts",

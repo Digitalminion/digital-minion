@@ -1,6 +1,6 @@
 {
   "name": "@digital-minion/lib",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Core library for Digital Minion task management",
   "main": "dist/digital-minion-lib.js",
   "types": "dist/digital-minion-lib.d.ts",
