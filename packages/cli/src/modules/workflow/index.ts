@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
 import { Backends } from '@digital-minion/lib';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing task workflows via custom fields.
@@ -121,25 +122,10 @@ Note: Custom fields are a premium Asana feature.`,
     const workflowCmd = program
       .command('workflow')
       .alias('wf')
-      .description(`Manage task workflows and custom field statuses
+      .description(this.metadata.summary);
 
-Custom fields enable workflow management on tasks. Use enum fields to create
-status workflows like "To Do → In Progress → Done" or priority tracking.
-
-Note: Custom fields are a premium Asana feature.`);
-
-    // Add metadata help support
-    workflowCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = workflowCmd.helpInformation.bind(workflowCmd);
-    workflowCmd.helpInformation = () => {
-      const opts = workflowCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(workflowCmd, this.metadata);
 
     workflowCmd
       .command('fields')

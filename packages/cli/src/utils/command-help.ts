@@ -1,5 +1,7 @@
 import { Command } from 'commander';
-import { CommandMetadata, renderHelpJson, renderHelpText } from '../types/command-metadata';
+import { CommandMetadata, renderHelpJson } from '../types/command-metadata';
+import { renderModuleHelp, shouldUseColors } from './progressive-help';
+import { OutputFormatter } from '../output';
 
 /**
  * Adds --help-json option to a command and handles metadata output.
@@ -22,9 +24,17 @@ export function addMetadataHelp(command: Command, metadata: CommandMetadata): Co
       return renderHelpJson(metadata);
     }
 
-    // If metadata exists and no --help-json, use our custom renderer
+    // Check if we're in JSON output mode (no colors, use original help)
+    if (OutputFormatter.getFormat() === 'json') {
+      return renderHelpJson(metadata);
+    }
+
+    // If metadata exists, use our progressive help renderer
     if (metadata) {
-      return renderHelpText(metadata);
+      return renderModuleHelp(metadata, {
+        useColors: shouldUseColors(),
+        width: process.stdout.columns || 80,
+      });
     }
 
     // Fall back to default Commander help

@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
 import { Backends } from '@digital-minion/lib';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing task attachments.
@@ -162,23 +163,10 @@ View all attachments and remove them when no longer needed.`,
     const attachCmd = program
       .command('attachment')
       .alias('at')
-      .description(`Manage file and link attachments on tasks
+      .description(this.metadata.summary);
 
-Add files or URLs to tasks for documentation, reference, or collaboration.
-View all attachments and remove them when no longer needed.`);
-
-    // Add metadata help support
-    attachCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = attachCmd.helpInformation.bind(attachCmd);
-    attachCmd.helpInformation = () => {
-      const opts = attachCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(attachCmd, this.metadata);
 
     attachCmd
       .command('list <taskId>')

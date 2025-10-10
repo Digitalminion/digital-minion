@@ -3,7 +3,8 @@ import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson, renderHelpText } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for tag management and task categorization.
@@ -154,33 +155,10 @@ export class TagModule implements Module {
     const tagCmd = program
       .command('tag')
       .alias('tg')
-      .description(`Manage tags for organizing and categorizing tasks
+      .description(this.metadata.summary);
 
-Tags are labels you apply to tasks for organization and filtering. Common
-tag patterns include:
-  - Priority levels:  priority:high, priority:medium, priority:low
-  - Modules/Areas:    module:auth, module:api, module:frontend
-  - Task types:       bug, feature, refactor, documentation
-  - Status markers:   blocked, in-review, ready
-
-Tags enable powerful filtering with "tasks list --tag <name>" to find
-specific categories of work.
-
-NOTE: Agent assignments also use tags (agent:name), but are managed via
-      "tasks assign" commands for convenience.`);
-
-    // Add metadata help support
-    tagCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = tagCmd.helpInformation.bind(tagCmd);
-    tagCmd.helpInformation = () => {
-      const opts = tagCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(tagCmd, this.metadata);
 
     tagCmd
       .command('list')
@@ -193,8 +171,8 @@ Shows all available tags you can apply to tasks. Use this to:
   - Discover existing categorization schemes
 
 Example:
-  tasks tag list
-  tasks -o json tag list | jq '.tags[] | .name'
+  dm tag list
+  dm -o json tag list | jq '.tags[] | .name'
 
 TIP: Tags starting with "agent:" are agent assignments`)
       .action(async () => {
@@ -212,9 +190,9 @@ Arguments:
   name - Tag name (e.g., "priority:high", "bug", "module:auth")
 
 Examples:
-  tasks tag create "priority:high"
-  tasks tag create "urgent"
-  tasks tag create "module:backend"
+  dm tag create "priority:high"
+  dm tag create "urgent"
+  dm tag create "module:backend"
 
 Best practices:
   - Use consistent naming: "priority:high" not "High Priority"
@@ -229,20 +207,20 @@ Best practices:
       .description(`Add a tag to a task
 
 Applies an existing tag to a task. The tag must already exist (use
-"tasks tag create" first if needed).
+"dm tag create" first if needed).
 
 Arguments:
   taskId  - The task GID to tag
   tagName - Existing tag name (case-insensitive)
 
 Examples:
-  tasks tag add 1234567890 "priority:high"
-  tasks tag add 1234567890 bug
+  dm tag add 1234567890 "priority:high"
+  dm tag add 1234567890 bug
 
 Bulk tagging workflow:
   # Tag all incomplete tasks matching a search
-  for id in $(tasks -o json list --search "login" -i | jq -r '.tasks[].gid'); do
-    tasks tag add "$id" "module:auth"
+  for id in $(dm -o json list --search "login" -i | jq -r '.tasks[].gid'); do
+    dm tag add "$id" "module:auth"
   done`)
       .action(async (taskId, tagName) => {
         await this.addTagToTaskCmd(taskId, tagName);
@@ -260,10 +238,10 @@ Arguments:
   tagName - Tag name to remove (case-insensitive)
 
 Examples:
-  tasks tag remove 1234567890 "priority:high"
-  tasks tag rm 1234567890 bug
+  dm tag remove 1234567890 "priority:high"
+  dm tag rm 1234567890 bug
 
-NOTE: To remove agent assignments, use "tasks unassign <taskId>" instead`)
+NOTE: To remove agent assignments, use "dm unassign <taskId>" instead`)
       .action(async (taskId, tagName) => {
         await this.removeTagFromTaskCmd(taskId, tagName);
       });
@@ -321,7 +299,7 @@ NOTE: To remove agent assignments, use "tasks unassign <taskId>" instead`)
       const tag = tags.find((t: Backends.Tag) => t.name.toLowerCase() === tagName.toLowerCase());
 
       if (!tag) {
-        console.error(`✗ Tag "${tagName}" not found. Use "tasks tag list" to see available tags.`);
+        console.error(`✗ Tag "${tagName}" not found. Use "dm tag list" to see available tags.`);
         process.exit(1);
       }
 
@@ -344,7 +322,7 @@ NOTE: To remove agent assignments, use "tasks unassign <taskId>" instead`)
       const tag = tags.find((t: Backends.Tag) => t.name.toLowerCase() === tagName.toLowerCase());
 
       if (!tag) {
-        console.error(`✗ Tag "${tagName}" not found. Use "tasks tag list" to see available tags.`);
+        console.error(`✗ Tag "${tagName}" not found. Use "dm tag list" to see available tags.`);
         process.exit(1);
       }
 

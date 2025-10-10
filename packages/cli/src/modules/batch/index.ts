@@ -4,7 +4,8 @@ import { ConfigManager } from '../../config/manager';
 import { BackendProvider } from '../../backend-provider';
 import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 import * as fs from 'fs';
 
 /**
@@ -132,80 +133,10 @@ Supported Operations:
     const batchCmd = program
       .command('batch')
       .alias('ba')
-      .description(`Execute batch operations via JSON payloads
+      .description(this.metadata.summary);
 
-Batch operations allow agents to perform multiple task operations in a single
-command by providing a JSON payload. Each operation is executed sequentially,
-and detailed results are returned for each operation and task.
-
-Supported Operations:
-  • assign        - Assign tasks to an agent
-  • unassign      - Remove agent assignments
-  • complete      - Mark tasks as complete
-  • move-section  - Move tasks to a section
-  • add-tag       - Add a tag to tasks
-  • remove-tag    - Remove a tag from tasks
-  • update-task   - Update task properties
-
-JSON Payload Format:
-  {
-    "operations": [
-      {
-        "id": "optional-operation-id",
-        "type": "operation-type",
-        "taskIds": ["taskId1", "taskId2"],
-        "params": { /* operation-specific params */ }
-      }
-    ]
-  }
-
-Examples:
-  # Assign multiple tasks to an agent
-  echo '{
-    "operations": [{
-      "type": "assign",
-      "taskIds": ["123", "456"],
-      "params": {"agentName": "claude"}
-    }]
-  }' | dm batch execute
-
-  # Move tasks to a section and complete them
-  echo '{
-    "operations": [
-      {
-        "id": "move-op",
-        "type": "move-section",
-        "taskIds": ["123", "456"],
-        "params": {"sectionId": "999"}
-      },
-      {
-        "id": "complete-op",
-        "type": "complete",
-        "taskIds": ["123", "456"]
-      }
-    ]
-  }' | dm batch execute
-
-  # From file
-  dm batch execute -f operations.json
-
-  # Complex multi-operation workflow
-  dm batch execute -f workflow.json
-
-For detailed examples, run: dm batch examples`);
-
-    // Add metadata help support
-    batchCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = batchCmd.helpInformation.bind(batchCmd);
-    batchCmd.helpInformation = () => {
-      const opts = batchCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(batchCmd, this.metadata);
 
     batchCmd
       .command('execute')

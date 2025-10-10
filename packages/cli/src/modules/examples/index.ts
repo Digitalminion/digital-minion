@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { Module } from '../../types';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for displaying usage examples and best practices.
@@ -139,20 +140,10 @@ export class ExamplesModule implements Module {
   register(program: Command): void {
     const examplesCmd = program
       .command('examples')
-      .description('Show usage examples and best practices');
+      .description(this.metadata.summary);
 
-    // Add metadata help support
-    examplesCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = examplesCmd.helpInformation.bind(examplesCmd);
-    examplesCmd.helpInformation = () => {
-      const opts = examplesCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(examplesCmd, this.metadata);
 
     examplesCmd
       .command('json')
@@ -213,43 +204,43 @@ ${'='.repeat(80)}
 The --output (or -o) flag enables JSON output for programmatic consumption.
 
 Basic Usage:
-  tasks -o json list show
-  tasks --output json list tag list
+  dm -o json list show
+  dm --output json list tag list
 
 Extract Specific Data:
   # Get task count
-  tasks -o json list show | jq '.count'
+  dm -o json list show | jq '.count'
 
   # Get all task IDs
-  tasks -o json list show | jq -r '.tasks[].gid'
+  dm -o json list show | jq -r '.tasks[].gid'
 
   # Get incomplete tasks with specific tag
-  tasks -o json list show -i --tag "module:list" | jq '.tasks[]'
+  dm -o json list show -i --tag "module:list" | jq '.tasks[]'
 
 Parsing in Scripts:
   # Node.js
-  tasks -o json list show | node -e "\\
+  dm -o json list show | node -e "\\
     const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); \\
     console.log('Total:', data.count);"
 
   # Python
-  tasks -o json list show | python -c "\\
+  dm -o json list show | python -c "\\
     import json, sys; \\
     data = json.load(sys.stdin); \\
     print(f'Total: {data[\"count\"]}')"
 
   # jq
-  tasks -o json list --tag "feature" | jq '.tasks | length'
+  dm -o json list --tag "feature" | jq '.tasks | length'
 
 Chain Commands:
   # Create task and immediately add tags
-  TASK_ID=$(tasks -o json task add "My task" | jq -r '.task.gid')
-  tasks tag add $TASK_ID "module:list"
+  TASK_ID=$(dm -o json task add "My task" | jq -r '.task.gid')
+  dm tag add $TASK_ID "module:list"
 
   # Find and complete multiple tasks
-  tasks -o json list --search "bug" | \\
+  dm -o json list --search "bug" | \\
     jq -r '.tasks[].gid' | \\
-    xargs -I {} tasks task complete {}
+    xargs -I {} dm task complete {}
 `);
   }
 
@@ -260,18 +251,18 @@ ${'='.repeat(80)}
 
 Batch Operations:
   # Complete all tasks with a specific tag
-  for id in $(tasks -o json list -i --tag "urgent" | jq -r '.tasks[].gid'); do
-    tasks task complete "$id"
+  for id in $(dm -o json list -i --tag "urgent" | jq -r '.tasks[].gid'); do
+    dm task complete "$id"
   done
 
   # Add tag to all incomplete tasks in a module
-  tasks -o json list -i --tag "module:list" | \\
+  dm -o json list -i --tag "module:list" | \\
     jq -r '.tasks[].gid' | \\
-    xargs -I {} tasks tag add {} "reviewed"
+    xargs -I {} dm tag add {} "reviewed"
 
 Data Analysis:
   # Count tasks by module
-  tasks -o json list -i | node -e "
+  dm -o json list -i | node -e "
     const data = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
     const byModule = {};
     data.tasks.forEach(t => {
@@ -284,30 +275,30 @@ Data Analysis:
     );"
 
   # Export tasks to CSV
-  tasks -o json list | jq -r '
+  dm -o json list | jq -r '
     [\"ID\",\"Name\",\"Completed\",\"Tags\"],
     (.tasks[] | [.gid, .name, .completed, (.tags | join(\";\"))])
     | @csv'
 
 AI Agent Integration:
   # Let AI analyze task backlog
-  TASKS=$(tasks -o json list -i --tag "module:list")
+  TASKS=$(dm -o json list -i --tag "module:list")
   echo "Analyze this backlog: $TASKS" | ai-assistant
 
   # Programmatic task creation
   cat task-list.json | jq -r '.[] |
-    "tasks -o json task add \\"\\(.name)\\" --notes \\"\\(.notes)\\""' |
+    "dm -o json task add \\"\\(.name)\\" --notes \\"\\(.notes)\\""' |
     bash
 
 Reporting:
   # Daily summary
   echo "=== Daily Task Summary ==="
-  echo "Total tasks: $(tasks -o json list | jq '.count')"
-  echo "Incomplete: $(tasks -o json list -i | jq '.count')"
-  echo "Completed today: $(tasks -o json list -c | jq '.count')"
+  echo "Total tasks: $(dm -o json list | jq '.count')"
+  echo "Incomplete: $(dm -o json list -i | jq '.count')"
+  echo "Completed today: $(dm -o json list -c | jq '.count')"
   echo ""
   echo "By module:"
-  tasks -o json list -i | node -e "
+  dm -o json list -i | node -e "
     const data = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
     const modules = {};
     data.tasks.forEach(t => {
@@ -327,55 +318,55 @@ TASK FILTERING EXAMPLES
 ${'='.repeat(80)}
 
 Filter by Status:
-  tasks list -i                    # Incomplete tasks only
-  tasks list -c                    # Completed tasks only
+  dm list -i                    # Incomplete tasks only
+  dm list -c                    # Completed tasks only
 
 Search by Name/Notes:
-  tasks list --search "bug"        # Search in name and notes
-  tasks list -s "milestone"        # Short form
+  dm list --search "bug"        # Search in name and notes
+  dm list -s "milestone"        # Short form
 
 Filter by Tags:
-  tasks list --tag "module:list"   # Single tag
-  tasks list --tag "feature,bug"   # Multiple tags (OR logic)
+  dm list --tag "module:list"   # Single tag
+  dm list --tag "feature,bug"   # Multiple tags (OR logic)
 
 Filter by Priority:
-  tasks list --priority high       # High priority tasks only
-  tasks list --priority medium -i  # Incomplete medium priority tasks
-  tasks list -p low                # Low priority tasks (short form)
+  dm list --priority high       # High priority tasks only
+  dm list --priority medium -i  # Incomplete medium priority tasks
+  dm list -p low                # Low priority tasks (short form)
 
 Filter by Assignee:
-  tasks list --assignee "john"     # Partial name match
-  tasks list -a "jane"             # Short form
+  dm list --assignee "john"     # Partial name match
+  dm list -a "jane"             # Short form
 
 Filter by Due Date:
-  tasks list --due-from 2025-01-01 --due-to 2025-01-31
-  tasks list --due-to 2025-01-15   # Due before date
+  dm list --due-from 2025-01-01 --due-to 2025-01-31
+  dm list --due-to 2025-01-15   # Due before date
 
 Combine Filters:
   # Incomplete features in list module
-  tasks list -i --tag "feature,module:list"
+  dm list -i --tag "feature,module:list"
 
   # Search for bugs due this week
-  tasks list --search "bug" --due-to 2025-01-07
+  dm list --search "bug" --due-to 2025-01-07
 
   # High priority tasks assigned to specific person
-  tasks list --priority high --assignee "austin"
+  dm list --priority high --assignee "austin"
 
   # High priority incomplete tasks for agent
-  tasks list --priority high --agent becky -i
+  dm list --priority high --agent becky -i
 
 JSON + Filtering for Advanced Queries:
   # Get IDs of all incomplete tasks with multiple tags
-  tasks -o json list -i --tag "module:list" | \\
+  dm -o json list -i --tag "module:list" | \\
     jq -r '.tasks[] | select(.tags | contains(["feature"])) | .gid'
 
   # Count tasks by completion status
-  tasks -o json list | \\
+  dm -o json list | \\
     jq '[.tasks[] | .completed] | group_by(.) |
         map({completed: .[0], count: length})'
 
   # Find overdue tasks (requires custom logic)
-  tasks -o json list -i | \\
+  dm -o json list -i | \\
     jq --arg today "$(date +%Y-%m-%d)" \\
     '.tasks[] | select(.dueOn != null and .dueOn < $today)'
 `);
@@ -390,41 +381,41 @@ Agent assignments use tags with the "agent:" prefix (e.g., "agent:becky").
 This allows agents to work without requiring Asana user accounts.
 
 Assign Tasks to Agents:
-  tasks assign 1234567890 becky      # Assign task to agent "becky"
-  tasks assign 9876543210 claude     # Assign task to agent "claude"
+  dm assign 1234567890 becky      # Assign task to agent "becky"
+  dm assign 9876543210 claude     # Assign task to agent "claude"
 
 Reassign Tasks:
-  tasks reassign 1234567890 alice    # Change assignment from one agent to another
-  tasks unassign 1234567890          # Remove agent assignment
+  dm reassign 1234567890 alice    # Change assignment from one agent to another
+  dm unassign 1234567890          # Remove agent assignment
 
 Find Agent's Tasks:
-  tasks list --agent becky           # Show all tasks for agent "becky"
-  tasks list --agent becky -i        # Show incomplete tasks for "becky"
-  tasks list --agent claude -o json  # Get "claude's" tasks as JSON
+  dm list --agent becky           # Show all tasks for agent "becky"
+  dm list --agent becky -i        # Show incomplete tasks for "becky"
+  dm list --agent claude -o json  # Get "claude's" tasks as JSON
 
 Agent Workflow - Finding Your Work:
   # Agent "becky" checks assigned incomplete tasks
-  tasks list --agent becky -i
+  dm list --agent becky -i
 
   # Get task details in JSON for programmatic processing
-  tasks -o json list --agent becky -i | jq '.tasks[]'
+  dm -o json list --agent becky -i | jq '.tasks[]'
 
   # Find your high-priority tasks
-  tasks list --agent becky --tag "priority:high" -i
+  dm list --agent becky --tag "priority:high" -i
 
 Self-Assignment Pattern:
   # Agent assigns a task to themselves
   AGENT_NAME="becky"
-  tasks assign 1234567890 \$AGENT_NAME
+  dm assign 1234567890 \$AGENT_NAME
 
   # Or use environment variable
   export MY_AGENT_NAME="becky"
-  tasks assign 1234567890 \$MY_AGENT_NAME
+  dm assign 1234567890 \$MY_AGENT_NAME
 
 Automated Agent Workflows:
   # Daily standup: What am I working on?
   echo "=== My Tasks (becky) ==="
-  tasks -o json list --agent becky -i | jq -r '
+  dm -o json list --agent becky -i | jq -r '
     "Total: \\(.count)",
     "",
     "Tasks:",
@@ -432,13 +423,13 @@ Automated Agent Workflows:
   '
 
   # Agent completes a task and finds next one
-  tasks task complete 1234567890
-  NEXT_TASK=\$(tasks -o json list --agent becky -i | jq -r '.tasks[0].gid')
+  dm task complete 1234567890
+  NEXT_TASK=\$(dm -o json list --agent becky -i | jq -r '.tasks[0].gid')
   echo "Working on task: \$NEXT_TASK"
 
 Multi-Agent Coordination:
   # See all agent assignments
-  tasks -o json list -i | jq -r '
+  dm -o json list -i | jq -r '
     .tasks[] |
     select(.tags | any(startswith("agent:"))) |
     (.tags[] | select(startswith("agent:"))) as \$agent |
@@ -446,7 +437,7 @@ Multi-Agent Coordination:
   '
 
   # Count tasks per agent
-  tasks -o json list -i | jq '
+  dm -o json list -i | jq '
     [.tasks[] |
      (.tags[] | select(startswith("agent:"))) as \$agent |
      \$agent] |
@@ -455,7 +446,7 @@ Multi-Agent Coordination:
   '
 
   # Unassigned tasks (no agent tag)
-  tasks -o json list -i | jq -r '
+  dm -o json list -i | jq -r '
     .tasks[] |
     select(.tags | all(startswith("agent:") | not)) |
     "[\\(.gid)] \\(.name)"
@@ -463,21 +454,21 @@ Multi-Agent Coordination:
 
 Integration with AI Agents:
   # Agent checks their task list programmatically
-  MY_TASKS=\$(tasks -o json list --agent claude -i)
+  MY_TASKS=\$(dm -o json list --agent claude -i)
   echo \$MY_TASKS | jq '.tasks[] | {id: .gid, task: .name, notes: .notes}'
 
   # Agent picks up next unassigned task
-  UNASSIGNED=\$(tasks -o json list -i | jq -r '
+  UNASSIGNED=\$(dm -o json list -i | jq -r '
     .tasks[] |
     select(.tags | all(startswith("agent:") | not)) |
     .gid' | head -1)
-  tasks assign \$UNASSIGNED claude
+  dm assign \$UNASSIGNED claude
 
   # Agent creates subtasks and assigns them
   PARENT_TASK="1234567890"
-  tasks subtask add \$PARENT_TASK "Implement feature X"
-  SUBTASK_ID=\$(tasks -o json subtask list \$PARENT_TASK | jq -r '.subtasks[0].gid')
-  tasks assign \$SUBTASK_ID claude
+  dm subtask add \$PARENT_TASK "Implement feature X"
+  SUBTASK_ID=\$(dm -o json subtask list \$PARENT_TASK | jq -r '.subtasks[0].gid')
+  dm assign \$SUBTASK_ID claude
 
 Best Practices:
   - Use lowercase agent names for consistency: "becky", "claude", "alice"

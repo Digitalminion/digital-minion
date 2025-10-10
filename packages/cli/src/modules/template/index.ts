@@ -70,20 +70,35 @@ export class TemplateModule implements Module {
         ],
         options: [
           {
-            name: '-n, --notes <notes>',
-            description: 'Template description/notes'
+            short: '-n',
+            long: '--notes',
+            description: 'Template description/notes',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<notes>'
           },
           {
-            name: '-t, --tags <tags>',
-            description: 'Comma-separated tags'
+            short: '-t',
+            long: '--tags',
+            description: 'Comma-separated tags',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<tags>'
           },
           {
-            name: '-p, --priority <priority>',
-            description: 'Priority: low, medium, or high'
+            short: '-p',
+            long: '--priority',
+            description: 'Priority: low, medium, or high',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<priority>',
+            validValues: ['low', 'medium', 'high']
           },
           {
-            name: '-m, --milestone',
-            description: 'Mark as milestone template'
+            short: '-m',
+            long: '--milestone',
+            description: 'Mark as milestone template',
+            takesValue: false
           }
         ],
         examples: [
@@ -111,12 +126,20 @@ export class TemplateModule implements Module {
         ],
         options: [
           {
-            name: '-n, --name <name>',
-            description: 'Name for the new task (defaults to template name)'
+            short: '-n',
+            long: '--name',
+            description: 'Name for the new task (defaults to template name)',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<name>'
           },
           {
-            name: '-s, --section <sectionId>',
-            description: 'Section ID to place the task in'
+            short: '-s',
+            long: '--section',
+            description: 'Section ID to place the task in',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<sectionId>'
           }
         ],
         examples: [

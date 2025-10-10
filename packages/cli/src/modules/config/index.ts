@@ -5,7 +5,8 @@ import { ConfigManager } from '../../config/manager';
 import { BackendType, MinionConfig, AsanaConfig } from '../../config/types';
 import { AsanaClient } from './asana-client';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing CLI configuration.
@@ -97,29 +98,10 @@ export class ConfigModule implements Module {
     const configCmd = program
       .command('config')
       .alias('cfg')
-      .description(`Initialize and manage CLI configuration
+      .description(this.metadata.summary);
 
-Initialize your environment or switch between workspaces, teams, and projects.
-
-Commands:
-  init      - Initialize CLI configuration (first-time setup)
-  show      - Display current configuration
-  workspace - Switch to a different workspace
-  team      - Switch to a different team
-  project   - Switch to a different project`);
-
-    // Add metadata help support
-    configCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = configCmd.helpInformation.bind(configCmd);
-    configCmd.helpInformation = () => {
-      const opts = configCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(configCmd, this.metadata);
 
     // Initialize configuration (also available as top-level 'init' command for backwards compatibility)
     configCmd

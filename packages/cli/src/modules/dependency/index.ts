@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
 import { Backends } from '@digital-minion/lib';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing task dependencies.
@@ -121,27 +122,10 @@ Terminology:
     const depCmd = program
       .command('dependency')
       .alias('dep')
-      .description(`Manage task dependencies and blocking relationships
+      .description(this.metadata.summary);
 
-Task dependencies define which tasks must be completed before others can start.
-Use this to model workflows and ensure proper task sequencing.
-
-Terminology:
-  - "Task A depends on Task B" = Task B must complete before Task A can start
-  - "Task B blocks Task A" = Task A cannot start until Task B is complete`);
-
-    // Add metadata help support
-    depCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = depCmd.helpInformation.bind(depCmd);
-    depCmd.helpInformation = () => {
-      const opts = depCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(depCmd, this.metadata);
 
     depCmd
       .command('add <taskId> <dependsOnTaskId>')

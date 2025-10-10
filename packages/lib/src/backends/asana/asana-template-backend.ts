@@ -1,6 +1,6 @@
 const Asana = require('asana');
-import { ITemplateBackend } from '../core/template-backend';
-import { TaskTemplate, Task } from '../core/types';
+import { ITemplateBackend, TaskTemplate } from '../core/template-backend';
+import { Task } from '../core/types';
 import { AsanaConfig, AsanaBackendBase } from './asana-config';
 
 /**

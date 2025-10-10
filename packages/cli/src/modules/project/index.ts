@@ -4,7 +4,8 @@ import { ConfigManager } from '../../config/manager';
 import { BackendProvider } from '../../backend-provider';
 import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing projects, briefs, and memberships.
@@ -337,23 +338,10 @@ export class ProjectModule implements Module {
     const projectCmd = program
       .command('project')
       .alias('pj')
-      .description(`Manage projects, documentation, and team members
+      .description(this.metadata.summary);
 
-Projects are workspaces for organizing tasks, tracking progress, and
-collaborating with team members.`);
-
-    // Add metadata help support
-    projectCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = projectCmd.helpInformation.bind(projectCmd);
-    projectCmd.helpInformation = () => {
-      const opts = projectCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(projectCmd, this.metadata);
 
     // Project info commands
     projectCmd

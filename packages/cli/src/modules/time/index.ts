@@ -41,8 +41,12 @@ export class TimeModule implements Module {
         ],
         options: [
           {
-            name: '-n, --notes <notes>',
-            description: 'Notes about the work done'
+            short: '-n',
+            long: '--notes',
+            description: 'Notes about the work done',
+            takesValue: true,
+            valueType: 'string',
+            valueName: '<notes>'
           }
         ],
         examples: [

@@ -4,8 +4,9 @@ import * as path from 'path';
 import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
 import { Backends } from '@digital-minion/lib';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for exporting tasks to various formats.
@@ -325,35 +326,10 @@ as the list command.`,
     const exportCmd = program
       .command('export')
       .alias('ex')
-      .description(`Export tasks to various formats
+      .description(this.metadata.summary);
 
-Export task data to CSV, JSON, or Markdown formats for reporting, backup,
-or integration with other tools. Supports filtering by the same criteria
-as the list command.
-
-Supported formats:
-  - CSV:      Spreadsheet-compatible format for Excel, Google Sheets
-  - JSON:     Machine-readable format for programmatic processing
-  - Markdown: Human-readable format for documentation
-
-Examples:
-  dm export csv tasks.csv -i
-  dm export json backup.json
-  dm export markdown report.md --agent becky -i
-  dm export csv high-priority.csv --priority high -i`);
-
-    // Add metadata help support
-    exportCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = exportCmd.helpInformation.bind(exportCmd);
-    exportCmd.helpInformation = () => {
-      const opts = exportCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(exportCmd, this.metadata);
 
     exportCmd
       .command('csv <filename>')

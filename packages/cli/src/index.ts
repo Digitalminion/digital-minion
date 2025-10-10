@@ -19,6 +19,7 @@ import { BatchModule } from './modules/batch';
 import { TemplateModule } from './modules/template';
 import { TimeModule } from './modules/time';
 import { OutputFormatter } from './output';
+import { renderMainHelp, shouldUseColors } from './utils/progressive-help';
 
 /**
  * Main entry point for the task management CLI application.
@@ -48,43 +49,7 @@ export async function main(): Promise<void> {
   const program = new Command();
   const registry = new ModuleRegistry();
 
-  // Configure CLI
-  const modules = registry.getModules();
-  const modulesHelp = `\n\nAvailable Commands:\n${modules.map(m => `  ${m.name.padEnd(15)} ${m.description}`).join('\n')}`;
-
-  const quickStartHelp = `\n\nQuick Start for Agents:
-  1. Find your work:       tasks list --agent myname -i
-  2. Get task details:     tasks task get <taskId>
-  3. Complete a task:      tasks task complete <taskId>
-  4. Self-assign work:     tasks assign <taskId> myname
-
-  For comprehensive examples: tasks examples agents`;
-
-  const jsonHelp = `\n\nJSON Output (Recommended for Agents):
-  All commands support JSON output with -o json flag:
-    tasks -o json list --agent myname -i | jq '.tasks[]'
-    tasks -o json task get <taskId> | jq '.task'
-
-  Perfect for programmatic consumption, scripting, and automation.
-  Run 'tasks examples' for detailed usage patterns.`;
-
-  program
-    .name('tasks')
-    .description(`Task Management CLI for Teams and AI Agents
-
-A modular CLI for managing tasks in Asana projects. Designed for both human
-users and AI agents with comprehensive JSON output support.
-
-Key Features:
-  • Agent-friendly task assignment (no Asana accounts needed)
-  • Powerful filtering and search
-  • Full CRUD operations for tasks
-  • Tags, sections, and subtasks for organization
-  • JSON output for programmatic consumption${modulesHelp}${quickStartHelp}${jsonHelp}`)
-    .version('1.4.1')
-    .option('-o, --output <format>', 'Output format: text (default) or json for automation', 'text');
-
-  // Register modules
+  // Register modules first
   registry.register(new ConfigModule());
   registry.register(new ListModule());
   registry.register(new ProjectModule());
@@ -103,6 +68,31 @@ Key Features:
   registry.register(new TimeModule());
   registry.register(new ExportModule());
   registry.register(new ExamplesModule());
+
+  // Get modules for help
+  const modules = registry.getModules();
+
+  // Configure CLI
+  program
+    .name('dm')
+    .description('Task Management CLI for Teams and AI Agents')
+    .version('1.4.1')
+    .option('-o, --output <format>', 'Output format: text (default) or json for automation', 'text');
+
+  // Override help to use our progressive help renderer
+  const originalHelp = program.helpInformation.bind(program);
+  program.helpInformation = function() {
+    // Check if we're in JSON output mode
+    if (OutputFormatter.getFormat() === 'json') {
+      return originalHelp();
+    }
+
+    // Use our progressive help renderer
+    return renderMainHelp(modules, {
+      useColors: shouldUseColors(),
+      width: process.stdout.columns || 80,
+    });
+  };
 
   // Apply all modules to the program
   registry.applyModules(program);

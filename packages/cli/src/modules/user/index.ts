@@ -4,7 +4,8 @@ import { ConfigManager } from '../../config/manager';
 import { BackendProvider } from '../../backend-provider';
 import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing users in the workspace.
@@ -118,23 +119,10 @@ export class UserModule implements Module {
     const userCmd = program
       .command('user')
       .alias('us')
-      .description(`Manage and search workspace users
+      .description(this.metadata.summary);
 
-Users are team members in your workspace. Use these commands to find users
-for task assignment and collaboration.`);
-
-    // Add metadata help support
-    userCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = userCmd.helpInformation.bind(userCmd);
-    userCmd.helpInformation = () => {
-      const opts = userCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(userCmd, this.metadata);
 
     userCmd
       .command('me')

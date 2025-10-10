@@ -3,7 +3,8 @@ import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for individual task CRUD operations.
@@ -119,32 +120,10 @@ export class TaskModule implements Module {
     const taskCmd = program
       .command('task')
       .alias('tk')
-      .description(`Create, update, and manage individual tasks
+      .description(this.metadata.summary);
 
-Complete CRUD operations for task lifecycle management. Use these commands
-to create new work items, update existing tasks, mark work complete, or
-remove tasks entirely.
-
-Common workflow:
-  1. Create task:  tasks task add "Task name" --notes "Details"
-  2. Assign it:    tasks assign <taskId> myname
-  3. Work on it:   tasks list --agent myname -i
-  4. Complete it:  tasks task complete <taskId>
-
-TIP: For complex work, break tasks into subtasks with "tasks subtask add"`);
-
-    // Add metadata help support
-    taskCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = taskCmd.helpInformation.bind(taskCmd);
-    taskCmd.helpInformation = () => {
-      const opts = taskCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(taskCmd, this.metadata);
 
     // Add a new task
     taskCmd
@@ -164,15 +143,15 @@ Options:
   --tags <tags>            - Comma-separated tag names to add (tags must exist)
 
 Examples:
-  tasks task add "Implement login feature"
-  tasks task add "Fix bug #123" --notes "User reported crash" --due 2025-12-31
-  tasks task add "Review PR" --tags "priority:high,review"
-  tasks task add "Critical fix" --priority high --due 2025-12-31
-  tasks task add "v2.0 Release" --milestone --due 2025-12-31
+  dm task add "Implement login feature"
+  dm task add "Fix bug #123" --notes "User reported crash" --due 2025-12-31
+  dm task add "Review PR" --tags "priority:high,review"
+  dm task add "Critical fix" --priority high --due 2025-12-31
+  dm task add "v2.0 Release" --milestone --due 2025-12-31
 
 TIP: Create task, then immediately assign:
-  TASK_ID=$(tasks -o json task add "My task" | jq -r '.task.gid')
-  tasks assign $TASK_ID myname`)
+  TASK_ID=$(dm -o json task add "My task" | jq -r '.task.gid')
+  dm assign $TASK_ID myname`)
       .option('-n, --notes <notes>', 'Task notes/description')
       .option('-d, --due <date>', 'Due date (YYYY-MM-DD)')
       .option('-p, --priority <level>', 'Set priority (low, medium, high)')
@@ -203,11 +182,11 @@ Options:
   --tags <tags>            - Comma-separated tag names to ADD (doesn't remove existing)
 
 Examples:
-  tasks task update 1234567890 --title "New name"
-  tasks task update 1234567890 --due 2025-12-31
-  tasks task update 1234567890 --priority high
-  tasks task update 1234567890 --milestone
-  tasks task update 1234567890 --tags "urgent,reviewed"`)
+  dm task update 1234567890 --title "New name"
+  dm task update 1234567890 --due 2025-12-31
+  dm task update 1234567890 --priority high
+  dm task update 1234567890 --milestone
+  dm task update 1234567890 --tags "urgent,reviewed"`)
       .option('-t, --title <title>', 'New task name')
       .option('--notes <notes>', 'New task notes')
       .option('-d, --due <date>', 'New due date (YYYY-MM-DD)')
@@ -231,7 +210,7 @@ Arguments:
   taskId - The task GID to delete
 
 Example:
-  tasks task delete 1234567890
+  dm task delete 1234567890
 
 WARNING: This is permanent and cannot be undone`)
       .action(async (taskId) => {
@@ -249,11 +228,11 @@ Arguments:
   taskId - The task GID to complete
 
 Example:
-  tasks task complete 1234567890
+  dm task complete 1234567890
 
 Agent workflow - complete current task and find next:
-  tasks task complete 1234567890
-  NEXT=$(tasks -o json list --agent myname -i | jq -r '.tasks[0].gid')
+  dm task complete 1234567890
+  NEXT=$(dm -o json list --agent myname -i | jq -r '.tasks[0].gid')
   echo "Next task: $NEXT"`)
       .action(async (taskId) => {
         await this.completeTask(taskId);
@@ -271,8 +250,8 @@ Arguments:
   taskId - The task GID to fetch
 
 Example:
-  tasks task get 1234567890
-  tasks -o json task get 1234567890 | jq '.task'
+  dm task get 1234567890
+  dm -o json task get 1234567890 | jq '.task'
 
 Useful for:
   - Checking task details before working on it
@@ -331,7 +310,7 @@ Useful for:
         if (task.priority) console.log(`  Priority: ${task.priority}`);
         if (options.tags) console.log(`  Tags: ${options.tags}`);
         warnings.forEach(w => console.log(`  ⚠ ${w}`));
-        console.log(`  💡 TIP: Break this down? Add subtasks with "tasks subtask add ${task.gid} <name>"`);
+        console.log(`  💡 TIP: Break this down? Add subtasks with "dm subtask add ${task.gid} <name>"`);
         console.log();
       }
     } catch (error) {

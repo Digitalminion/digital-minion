@@ -4,7 +4,8 @@ import { ConfigManager } from '../../config/manager';
 import { BackendProvider } from '../../backend-provider';
 import { Backends } from '@digital-minion/lib';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for managing project status updates.
@@ -161,29 +162,10 @@ They're sent to all followers when created and help keep stakeholders informed.`
     const statusCmd = program
       .command('status')
       .alias('su')
-      .description(`Manage project status updates
+      .description(this.metadata.summary);
 
-Status updates provide progress information about projects, goals, or portfolios.
-They're sent to all followers when created and help keep stakeholders informed.
-
-Status Types:
-  on_track  - Project is progressing as expected
-  at_risk   - Project is facing potential challenges
-  off_track - Project is behind schedule
-  on_hold   - Project is temporarily paused`);
-
-    // Add metadata help support
-    statusCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = statusCmd.helpInformation.bind(statusCmd);
-    statusCmd.helpInformation = () => {
-      const opts = statusCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(statusCmd, this.metadata);
 
     statusCmd
       .command('list [projectGid]')

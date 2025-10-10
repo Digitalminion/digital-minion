@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
 import { Backends } from '@digital-minion/lib';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for listing, filtering, and agent assignment of tasks.
@@ -53,25 +54,7 @@ export class ListModule implements Module {
     const listCmd = program
       .command('list')
       .alias('ls')
-      .description(`Search and filter tasks across all criteria
-
-Primary command for finding work and querying tasks. Supports multiple filters
-that can be combined for precise results. Perfect for agents finding their
-assigned tasks or specific work items.
-
-Examples:
-  tasks list -i                        # All incomplete tasks
-  tasks list --agent becky -i          # Becky's incomplete tasks
-  tasks list --tag "priority:high" -i  # High priority incomplete tasks
-  tasks list --search "bug" -i         # Search incomplete tasks for "bug"
-  tasks list --due-to 2025-12-31       # Tasks due by end of year
-  tasks list --priority high -i        # High priority incomplete tasks
-
-For JSON output (recommended for agents):
-  tasks -o json list --agent myname -i | jq '.tasks[]'
-
-TIP: Use "tasks examples agents" for comprehensive agent workflow examples`)
-      .option('--help-json', 'Output command help as JSON')
+      .description(this.metadata.summary)
       .option('-c, --completed', 'Show only completed tasks')
       .option('-i, --incomplete', 'Show only incomplete tasks (default behavior)')
       .option('--all', 'Show all tasks (both completed and incomplete)')
@@ -86,15 +69,8 @@ TIP: Use "tasks examples agents" for comprehensive agent workflow examples`)
         await this.listTasks(options);
       });
 
-    // Override help to support JSON output
-    const originalHelp = listCmd.helpInformation.bind(listCmd);
-    listCmd.helpInformation = () => {
-      const opts = listCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(listCmd, this.metadata);
 
     // Agent assignment commands at top level
     program
@@ -105,15 +81,15 @@ Assigns a task to an agent by creating/adding an "agent:agentName" tag.
 This allows agents to work without requiring Asana user accounts.
 
 Arguments:
-  taskId     - The task GID (from "tasks list" output)
+  taskId     - The task GID (from "dm list" output)
   agentName  - Agent identifier (e.g., "becky", "claude", "alice")
 
 Examples:
-  tasks assign 1234567890 becky
-  tasks assign 1234567890 \${MY_AGENT_NAME}
+  dm assign 1234567890 becky
+  dm assign 1234567890 \${MY_AGENT_NAME}
 
 After assignment, find tasks with:
-  tasks list --agent becky -i`)
+  dm list --agent becky -i`)
       .action(async (taskId, agentName) => {
         await this.assignTaskCmd(taskId, agentName);
       });
@@ -129,7 +105,7 @@ Arguments:
   taskId - The task GID to unassign
 
 Example:
-  tasks unassign 1234567890`)
+  dm unassign 1234567890`)
       .action(async (taskId) => {
         await this.unassignTaskCmd(taskId);
       });
@@ -146,7 +122,7 @@ Arguments:
   agentName - New agent identifier
 
 Example:
-  tasks reassign 1234567890 alice`)
+  dm reassign 1234567890 alice`)
       .action(async (taskId, agentName) => {
         await this.reassignTaskCmd(taskId, agentName);
       });
@@ -250,7 +226,7 @@ Example:
               console.log(`  Tags: ${task.tags.join(', ')}`);
             }
             if (task.numSubtasks && task.numSubtasks > 0) {
-              console.log(`  💡 TIP: View subtasks with "tasks subtask list ${task.gid}"`);
+              console.log(`  💡 TIP: View subtasks with "dm subtask list ${task.gid}"`);
             }
           });
           console.log();

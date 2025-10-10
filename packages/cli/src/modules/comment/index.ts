@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { Module } from '../../types';
 import { BackendProvider } from '../../backend-provider';
 import { OutputFormatter } from '../../output';
-import { CommandMetadata, renderHelpJson, renderHelpText } from '../../types/command-metadata';
+import { CommandMetadata } from '../../types/command-metadata';
 import { Backends } from '@digital-minion/lib';
+import { addMetadataHelp } from '../../utils/command-help';
 
 /**
  * Module for task comment management.
@@ -102,31 +103,10 @@ document decisions without modifying the task description.`,
     const commentCmd = program
       .command('comment')
       .alias('cm')
-      .description(`Add and view comments on tasks
+      .description(this.metadata.summary);
 
-Comments provide a way to discuss tasks, ask questions, provide updates, and
-document decisions without modifying the task description.
-
-Use cases:
-  - Progress updates: Share status without changing task fields
-  - Questions: Ask for clarification from team members
-  - Decisions: Document why certain approaches were chosen
-  - Collaboration: Discuss implementation details
-
-Comments are displayed chronologically with author and timestamp information.`);
-
-    // Add metadata help support
-    commentCmd.option('--help-json', 'Output command help as JSON');
-
-    // Override help to support JSON output
-    const originalHelp = commentCmd.helpInformation.bind(commentCmd);
-    commentCmd.helpInformation = () => {
-      const opts = commentCmd.opts();
-      if (opts.helpJson) {
-        return renderHelpJson(this.metadata);
-      }
-      return originalHelp();
-    };
+    // Add progressive help support
+    addMetadataHelp(commentCmd, this.metadata);
 
     commentCmd
       .command('list <taskId>')
@@ -139,8 +119,8 @@ Arguments:
   taskId - The task GID to view comments for
 
 Examples:
-  tasks comment list 1234567890
-  tasks -o json comment list 1234567890 | jq '.comments[]'
+  dm comment list 1234567890
+  dm -o json comment list 1234567890 | jq '.comments[]'
 
 Useful for:
   - Reviewing discussion history
@@ -163,13 +143,13 @@ Arguments:
   text   - Comment text content
 
 Examples:
-  tasks comment add 1234567890 "Started working on this"
-  tasks comment add 1234567890 "Blocked by API rate limits"
-  tasks comment add 1234567890 "Completed testing, ready for review"
+  dm comment add 1234567890 "Started working on this"
+  dm comment add 1234567890 "Blocked by API rate limits"
+  dm comment add 1234567890 "Completed testing, ready for review"
 
 Agent workflow - add progress update:
-  MY_TASKS=$(tasks -o json list --agent myname -i | jq -r '.tasks[0].gid')
-  tasks comment add $MY_TASKS "Made good progress, 80% complete"
+  MY_TASKS=$(dm -o json list --agent myname -i | jq -r '.tasks[0].gid')
+  dm comment add $MY_TASKS "Made good progress, 80% complete"
 
 TIP: Use quotes around comment text to handle spaces and special characters`)
       .action(async (taskId, text) => {
