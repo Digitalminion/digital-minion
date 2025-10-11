@@ -1,18 +1,23 @@
 import { Backends } from '@digital-minion/lib';
 import { ConfigManager } from './config/manager';
+import { BackendConfiguration } from './config/types';
 
 /**
  * Backend provider utility for CLI modules.
  *
  * Provides a centralized way to get backend instances with proper
- * configuration from the config manager.
+ * configuration from the config manager. Supports multiple named backends
+ * with a default selection and CLI flag override.
  */
 export class BackendProvider {
   private static instance: BackendProvider;
-  private backends?: Backends.AllBackends;
-  private config?: Backends.MinionConfig;
+  private backendsCache: Map<string, Backends.AllBackends> = new Map();
+  private configManager: ConfigManager;
+  private currentBackendName?: string;
 
-  private constructor() {}
+  private constructor() {
+    this.configManager = new ConfigManager();
+  }
 
   /**
    * Gets the singleton instance of BackendProvider.
@@ -25,49 +30,99 @@ export class BackendProvider {
   }
 
   /**
-   * Loads configuration and initializes backends.
+   * Sets the backend to use for this session (e.g., from CLI flag).
+   *
+   * Args:
+   *   backendName: Name of the backend to use. If undefined, uses the default.
    */
-  private loadConfig(): Backends.MinionConfig {
-    if (this.config) {
-      return this.config;
+  setCurrentBackend(backendName?: string): void {
+    this.currentBackendName = backendName;
+  }
+
+  /**
+   * Gets the name of the backend to use (either overridden or default).
+   *
+   * Returns:
+   *   Backend name to use.
+   */
+  private getCurrentBackendName(): string {
+    if (this.currentBackendName) {
+      return this.currentBackendName;
     }
 
-    const configManager = new ConfigManager();
-    const config = configManager.load();
-
-    if (!config) {
+    const defaultBackend = this.configManager.getDefaultBackendName();
+    if (!defaultBackend) {
       console.error('✗ No configuration found. Please run "dm config init" first.');
       process.exit(1);
     }
 
-    if (config.backend === 'asana') {
-      if (!config.asana) {
-        console.error('✗ Asana configuration not found. Please run "dm config init" again.');
-        process.exit(1);
-      }
-      this.config = {
-        backend: 'asana',
-        config: config.asana
-      };
-    } else {
-      console.error('✗ Local backend not yet implemented.');
-      process.exit(1);
-    }
-
-    return this.config;
+    return defaultBackend;
   }
 
   /**
-   * Gets all backends, creating them if needed.
+   * Converts CLI backend configuration to lib MinionConfig format.
+   *
+   * Args:
+   *   backendConfig: Backend configuration from CLI config.
+   *
+   * Returns:
+   *   MinionConfig in the format expected by the lib.
+   */
+  private convertToLibConfig(backendConfig: BackendConfiguration): Backends.MinionConfig {
+    if (backendConfig.type === 'asana') {
+      if (!backendConfig.asana) {
+        console.error('✗ Asana configuration not found. Please run "dm config backend add" again.');
+        process.exit(1);
+      }
+      return {
+        backend: 'asana',
+        config: backendConfig.asana,
+      };
+    } else if (backendConfig.type === 'local') {
+      if (!backendConfig.local) {
+        console.error('✗ Local configuration not found. Please run "dm config backend add" again.');
+        process.exit(1);
+      }
+      return {
+        backend: 'local',
+        config: backendConfig.local,
+      };
+    } else {
+      console.error(`✗ Unsupported backend type: ${backendConfig.type}`);
+      process.exit(1);
+    }
+  }
+
+  /**
+   * Gets all backends for the current backend selection, creating them if needed.
+   *
+   * Returns:
+   *   All backend instances for the selected backend.
    */
   getAllBackends(): Backends.AllBackends {
-    if (this.backends) {
-      return this.backends;
+    const backendName = this.getCurrentBackendName();
+
+    // Check cache
+    const cached = this.backendsCache.get(backendName);
+    if (cached) {
+      return cached;
     }
 
-    const config = this.loadConfig();
-    this.backends = Backends.BackendFactory.createAllBackends(config);
-    return this.backends;
+    // Load backend config
+    const backendConfig = this.configManager.getBackend(backendName);
+    if (!backendConfig) {
+      console.error(`✗ Backend '${backendName}' not found in configuration.`);
+      process.exit(1);
+    }
+
+    // Convert to lib format and create backends
+    const libConfig = this.convertToLibConfig(backendConfig);
+    const backends = Backends.BackendFactory.createAllBackends(libConfig);
+
+    // Cache for reuse
+    this.backendsCache.set(backendName, backends);
+
+    return backends;
   }
 
   /**
@@ -141,7 +196,7 @@ export class BackendProvider {
    * Resets the provider (useful for testing or config changes).
    */
   reset() {
-    this.backends = undefined;
-    this.config = undefined;
+    this.backendsCache.clear();
+    this.currentBackendName = undefined;
   }
 }

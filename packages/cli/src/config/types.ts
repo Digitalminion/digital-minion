@@ -33,12 +33,67 @@ export interface AsanaConfig {
 }
 
 /**
+ * Configuration for Local backend storage.
+ *
+ * Contains settings for local file-based task storage.
+ * Uses hierarchical structure: basePath/teamName/projectName
+ */
+export interface LocalConfig {
+  /** Base path for local storage files. */
+  basePath: string;
+
+  /** Team name for organizing data (top-level directory). */
+  teamName: string;
+
+  /** Project name for organizing data (subdirectory under team). */
+  projectName: string;
+
+  /** Project identifier for internal references. */
+  projectId: string;
+}
+
+/**
+ * Configuration for a single backend instance.
+ *
+ * Each backend has a type and type-specific configuration.
+ */
+export interface BackendConfiguration {
+  /** Type of this backend. */
+  type: BackendType;
+
+  /** Human-readable description of this backend (optional). */
+  description?: string;
+
+  /** Asana-specific configuration (required when type is 'asana'). */
+  asana?: AsanaConfig;
+
+  /** Local-specific configuration (required when type is 'local'). */
+  local?: LocalConfig;
+}
+
+/**
  * Main configuration structure for the CLI application.
  *
- * Stores the selected backend type and backend-specific configuration.
- * Currently supports local storage (not implemented) and Asana integration.
+ * Supports multiple named backends with a default selection.
+ * Backends can be switched using the --backend flag or by changing the default.
  */
 export interface MinionConfig {
+  /** Name of the default backend to use. */
+  defaultBackend: string;
+
+  /** Map of backend names to their configurations. */
+  backends: Record<string, BackendConfiguration>;
+}
+
+/**
+ * Legacy configuration structure (deprecated).
+ *
+ * Supports single backend configuration for backward compatibility.
+ * New configurations should use the multi-backend structure.
+ *
+ * @deprecated Use MinionConfig with multiple backends instead
+ */
+export interface LegacyMinionConfig {
   /** Type of backend to use for task storage. */
   backend: BackendType;
 

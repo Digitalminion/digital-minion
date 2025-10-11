@@ -18,8 +18,10 @@ import { UserModule } from './modules/user';
 import { BatchModule } from './modules/batch';
 import { TemplateModule } from './modules/template';
 import { TimeModule } from './modules/time';
+import { SyncModule } from './modules/sync';
 import { OutputFormatter } from './output';
 import { renderMainHelp, shouldUseColors } from './utils/progressive-help';
+import { BackendProvider } from './backend-provider';
 
 /**
  * Main entry point for the task management CLI application.
@@ -46,6 +48,13 @@ export async function main(): Promise<void> {
     }
   }
 
+  // Extract backend flag early from command line arguments
+  const backendIndex = process.argv.findIndex(arg => arg === '-b' || arg === '--backend');
+  if (backendIndex !== -1 && process.argv[backendIndex + 1]) {
+    const backendName = process.argv[backendIndex + 1];
+    BackendProvider.getInstance().setCurrentBackend(backendName);
+  }
+
   const program = new Command();
   const registry = new ModuleRegistry();
 
@@ -66,6 +75,7 @@ export async function main(): Promise<void> {
   registry.register(new BatchModule());
   registry.register(new TemplateModule());
   registry.register(new TimeModule());
+  registry.register(new SyncModule());
   registry.register(new ExportModule());
   registry.register(new ExamplesModule());
 
@@ -77,7 +87,8 @@ export async function main(): Promise<void> {
     .name('dm')
     .description('Task Management CLI for Teams and AI Agents')
     .version('1.4.1')
-    .option('-o, --output <format>', 'Output format: text (default) or json for automation', 'text');
+    .option('-o, --output <format>', 'Output format: text (default) or json for automation', 'text')
+    .option('-b, --backend <name>', 'Backend to use for this command (overrides default)');
 
   // Override help to use our progressive help renderer
   const originalHelp = program.helpInformation.bind(program);

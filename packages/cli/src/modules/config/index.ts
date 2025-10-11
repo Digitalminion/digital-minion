@@ -150,9 +150,42 @@ export class ConfigModule implements Module {
       .action(async () => {
         await this.switchProjectCmd();
       });
+
+    // Backend management commands
+    const backendCmd = configCmd
+      .command('backend')
+      .description('Manage multiple backends');
+
+    backendCmd
+      .command('list')
+      .description('List all configured backends')
+      .action(async () => {
+        await this.listBackendsCmd();
+      });
+
+    backendCmd
+      .command('add <name>')
+      .description('Add a new backend configuration')
+      .action(async (name: string) => {
+        await this.addBackendCmd(name);
+      });
+
+    backendCmd
+      .command('remove <name>')
+      .description('Remove a backend configuration')
+      .action(async (name: string) => {
+        await this.removeBackendCmd(name);
+      });
+
+    backendCmd
+      .command('set-default <name>')
+      .description('Set the default backend')
+      .action(async (name: string) => {
+        await this.setDefaultBackendCmd(name);
+      });
   }
 
-  private getConfigOrExit(): { manager: ConfigManager; config: any } {
+  private getConfigOrExit(): { manager: ConfigManager; config: MinionConfig; backendName: string } {
     const configManager = new ConfigManager();
     const config = configManager.load();
 
@@ -161,50 +194,58 @@ export class ConfigModule implements Module {
       process.exit(1);
     }
 
-    if (config.backend !== 'asana' || !config.asana) {
+    const backendName = config.defaultBackend;
+    const backendConfig = config.backends[backendName];
+
+    if (!backendConfig || backendConfig.type !== 'asana' || !backendConfig.asana) {
       console.error('✗ Only Asana backend is supported for context switching.');
+      console.error(`✗ Current backend '${backendName}' is not an Asana backend.`);
       process.exit(1);
     }
 
-    return { manager: configManager, config };
+    return { manager: configManager, config, backendName };
   }
 
   private async showConfigCmd(): Promise<void> {
-    const { config } = this.getConfigOrExit();
+    const { config, backendName } = this.getConfigOrExit();
+    const backendConfig = config.backends[backendName]!;
 
     if (OutputFormatter.isJson()) {
       OutputFormatter.print({
-        backend: config.backend,
+        defaultBackend: backendName,
+        backend: backendConfig.type,
         workspace: {
-          id: config.asana!.workspaceId,
-          name: config.asana!.workspaceName
+          id: backendConfig.asana!.workspaceId,
+          name: backendConfig.asana!.workspaceName
         },
         team: {
-          id: config.asana!.teamId,
-          name: config.asana!.teamName
+          id: backendConfig.asana!.teamId,
+          name: backendConfig.asana!.teamName
         },
         project: {
-          id: config.asana!.projectId,
-          name: config.asana!.projectName
+          id: backendConfig.asana!.projectId,
+          name: backendConfig.asana!.projectName
         }
       });
     } else {
       console.log('\nCurrent Configuration:');
       console.log('=====================\n');
-      console.log(`Backend:   ${config.backend}`);
-      console.log(`Workspace: ${config.asana!.workspaceName} [${config.asana!.workspaceId}]`);
-      console.log(`Team:      ${config.asana!.teamName} [${config.asana!.teamId}]`);
-      console.log(`Project:   ${config.asana!.projectName} [${config.asana!.projectId}]`);
+      console.log(`Default Backend: ${backendName}`);
+      console.log(`Backend Type:    ${backendConfig.type}`);
+      console.log(`Workspace:       ${backendConfig.asana!.workspaceName} [${backendConfig.asana!.workspaceId}]`);
+      console.log(`Team:            ${backendConfig.asana!.teamName} [${backendConfig.asana!.teamId}]`);
+      console.log(`Project:         ${backendConfig.asana!.projectName} [${backendConfig.asana!.projectId}]`);
       console.log();
     }
   }
 
   private async switchWorkspaceCmd(): Promise<void> {
-    const { manager: configManager, config } = this.getConfigOrExit();
+    const { manager: configManager, config, backendName } = this.getConfigOrExit();
+    const backendConfig = config.backends[backendName]!;
 
     console.log('\nSwitching workspace...\n');
 
-    const client = new AsanaClient(config.asana!.accessToken);
+    const client = new AsanaClient(backendConfig.asana!.accessToken);
 
     // Fetch workspaces
     console.log('Fetching workspaces...');
@@ -332,27 +373,28 @@ export class ConfigModule implements Module {
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     // Update config
-    config.asana!.workspaceId = selectedWorkspace.gid;
-    config.asana!.workspaceName = selectedWorkspace.name;
-    config.asana!.teamId = selectedTeam.gid;
-    config.asana!.teamName = selectedTeam.name;
-    config.asana!.projectId = selectedProject.gid;
-    config.asana!.projectName = selectedProject.name;
+    backendConfig.asana!.workspaceId = selectedWorkspace.gid;
+    backendConfig.asana!.workspaceName = selectedWorkspace.name;
+    backendConfig.asana!.teamId = selectedTeam.gid;
+    backendConfig.asana!.teamName = selectedTeam.name;
+    backendConfig.asana!.projectId = selectedProject.gid;
+    backendConfig.asana!.projectName = selectedProject.name;
 
     configManager.save(config);
     console.log('\n✓ Configuration updated successfully');
   }
 
   private async switchTeamCmd(): Promise<void> {
-    const { manager: configManager, config } = this.getConfigOrExit();
+    const { manager: configManager, config, backendName } = this.getConfigOrExit();
+    const backendConfig = config.backends[backendName]!;
 
     console.log('\nSwitching team...\n');
 
-    const client = new AsanaClient(config.asana!.accessToken);
+    const client = new AsanaClient(backendConfig.asana!.accessToken);
 
     // Fetch teams
     console.log('Fetching teams...');
-    const teams = await client.getTeams(config.asana!.workspaceId);
+    const teams = await client.getTeams(backendConfig.asana!.workspaceId);
 
     const teamChoices = [
       ...teams.map((team) => ({
@@ -393,7 +435,7 @@ export class ConfigModule implements Module {
       }
 
       console.log('\nCreating new team...');
-      selectedTeam = await client.createTeam(config.asana!.workspaceId, newTeamResponse.teamName.trim());
+      selectedTeam = await client.createTeam(backendConfig.asana!.workspaceId, newTeamResponse.teamName.trim());
       console.log(`✓ Team created: ${selectedTeam.name}`);
     }
 
@@ -442,32 +484,33 @@ export class ConfigModule implements Module {
       }
 
       console.log('\nCreating new project...');
-      selectedProject = await client.createProject(config.asana!.workspaceId, newProjectResponse.projectName.trim(), selectedTeam.gid);
+      selectedProject = await client.createProject(backendConfig.asana!.workspaceId, newProjectResponse.projectName.trim(), selectedTeam.gid);
       console.log(`✓ Project created: ${selectedProject.name}`);
     }
 
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     // Update config
-    config.asana!.teamId = selectedTeam.gid;
-    config.asana!.teamName = selectedTeam.name;
-    config.asana!.projectId = selectedProject.gid;
-    config.asana!.projectName = selectedProject.name;
+    backendConfig.asana!.teamId = selectedTeam.gid;
+    backendConfig.asana!.teamName = selectedTeam.name;
+    backendConfig.asana!.projectId = selectedProject.gid;
+    backendConfig.asana!.projectName = selectedProject.name;
 
     configManager.save(config);
     console.log('\n✓ Configuration updated successfully');
   }
 
   private async switchProjectCmd(): Promise<void> {
-    const { manager: configManager, config } = this.getConfigOrExit();
+    const { manager: configManager, config, backendName } = this.getConfigOrExit();
+    const backendConfig = config.backends[backendName]!;
 
     console.log('\nSwitching project...\n');
 
-    const client = new AsanaClient(config.asana!.accessToken);
+    const client = new AsanaClient(backendConfig.asana!.accessToken);
 
     // Fetch projects
     console.log('Fetching projects...');
-    const projects = await client.getProjects(config.asana!.teamId);
+    const projects = await client.getProjects(backendConfig.asana!.teamId);
 
     const projectChoices = [
       ...projects.map((project) => ({
@@ -508,15 +551,15 @@ export class ConfigModule implements Module {
       }
 
       console.log('\nCreating new project...');
-      selectedProject = await client.createProject(config.asana!.workspaceId, newProjectResponse.projectName.trim(), config.asana!.teamId);
+      selectedProject = await client.createProject(backendConfig.asana!.workspaceId, newProjectResponse.projectName.trim(), backendConfig.asana!.teamId);
       console.log(`✓ Project created: ${selectedProject.name}`);
     }
 
     console.log(`\n✓ Selected project: ${selectedProject.name}`);
 
     // Update config
-    config.asana!.projectId = selectedProject.gid;
-    config.asana!.projectName = selectedProject.name;
+    backendConfig.asana!.projectId = selectedProject.gid;
+    backendConfig.asana!.projectName = selectedProject.name;
 
     configManager.save(config);
     console.log('\n✓ Configuration updated successfully');
@@ -560,27 +603,50 @@ export class ConfigModule implements Module {
     }
 
     const backend = backendResponse.backend as BackendType;
-    const config: MinionConfig = { backend };
 
-    // If Asana is selected, configure it
+    // Create backend configuration
+    const backendConfig: any = {
+      type: backend,
+      description: `Default ${backend} backend`,
+    };
+
+    // Configure based on type
     if (backend === 'asana') {
       const asanaConfig = await this.setupAsana();
       if (!asanaConfig) {
         console.log('Initialization cancelled.');
         return;
       }
-      config.asana = asanaConfig;
+      backendConfig.asana = asanaConfig;
+    } else if (backend === 'local') {
+      const localConfig = await this.setupLocal();
+      if (!localConfig) {
+        console.log('Initialization cancelled.');
+        return;
+      }
+      backendConfig.local = localConfig;
     }
+
+    // Create new multi-backend config
+    const config: MinionConfig = {
+      defaultBackend: 'default',
+      backends: {
+        default: backendConfig,
+      },
+    };
 
     // Save configuration
     try {
       configManager.save(config);
       console.log(`\n✓ Configuration saved to ${configManager.getConfigDir()}`);
       console.log(`✓ Backend set to: ${backend}`);
-      if (backend === 'asana' && config.asana) {
-        console.log(`✓ Workspace: ${config.asana.workspaceName}`);
-        console.log(`✓ Team: ${config.asana.teamName}`);
-        console.log(`✓ Project: ${config.asana.projectName}`);
+      if (backend === 'asana' && backendConfig.asana) {
+        console.log(`✓ Workspace: ${backendConfig.asana.workspaceName}`);
+        console.log(`✓ Team: ${backendConfig.asana.teamName}`);
+        console.log(`✓ Project: ${backendConfig.asana.projectName}`);
+      } else if (backend === 'local' && backendConfig.local) {
+        console.log(`✓ Base Path: ${backendConfig.local.basePath}`);
+        console.log(`✓ Project ID: ${backendConfig.local.projectId}`);
       }
       console.log('\n✓ Environment initialized successfully');
     } catch (error) {
@@ -747,5 +813,259 @@ export class ConfigModule implements Module {
       projectId: selectedProject.gid,
       projectName: selectedProject.name,
     };
+  }
+
+  private async listBackendsCmd(): Promise<void> {
+    const configManager = new ConfigManager();
+    const backends = configManager.listBackends();
+
+    if (backends.length === 0) {
+      console.log('✗ No backends configured. Please run "dm config init" first.');
+      return;
+    }
+
+    const defaultBackend = configManager.getDefaultBackendName();
+
+    if (OutputFormatter.isJson()) {
+      OutputFormatter.print({
+        defaultBackend,
+        backends: Object.fromEntries(backends.map(([name, config]) => [
+          name,
+          {
+            type: config.type,
+            description: config.description,
+            isDefault: name === defaultBackend
+          }
+        ]))
+      });
+    } else {
+      console.log('\nConfigured Backends:');
+      console.log('===================\n');
+
+      for (const [name, config] of backends) {
+        const isDefault = name === defaultBackend;
+        const defaultMarker = isDefault ? ' (default)' : '';
+        console.log(`${name}${defaultMarker}`);
+        console.log(`  Type: ${config.type}`);
+        if (config.description) {
+          console.log(`  Description: ${config.description}`);
+        }
+        if (config.type === 'asana' && config.asana) {
+          console.log(`  Workspace: ${config.asana.workspaceName}`);
+          console.log(`  Team: ${config.asana.teamName}`);
+          console.log(`  Project: ${config.asana.projectName}`);
+        } else if (config.type === 'local' && config.local) {
+          console.log(`  Base Path: ${config.local.basePath}`);
+          console.log(`  Team: ${config.local.teamName}`);
+          console.log(`  Project: ${config.local.projectName}`);
+          console.log(`  Project ID: ${config.local.projectId}`);
+        }
+        console.log();
+      }
+    }
+  }
+
+  private async addBackendCmd(name: string): Promise<void> {
+    const configManager = new ConfigManager();
+
+    // Check if backend already exists
+    const existing = configManager.getBackend(name);
+    if (existing) {
+      const response = await prompts({
+        type: 'confirm',
+        name: 'overwrite',
+        message: `Backend '${name}' already exists. Do you want to overwrite it?`,
+        initial: false,
+      });
+
+      if (!response.overwrite) {
+        console.log('Operation cancelled.');
+        return;
+      }
+    }
+
+    console.log(`\nAdding backend '${name}'...\n`);
+
+    // Prompt for backend type
+    const typeResponse = await prompts({
+      type: 'select',
+      name: 'type',
+      message: 'Choose backend type:',
+      choices: [
+        { title: 'Local', value: 'local', description: 'Store tasks locally on your machine' },
+        { title: 'Asana', value: 'asana', description: 'Integrate with Asana for task management' },
+      ],
+      initial: 0,
+    });
+
+    if (!typeResponse.type) {
+      console.log('Operation cancelled.');
+      return;
+    }
+
+    const backendType = typeResponse.type as BackendType;
+
+    // Prompt for description
+    const descResponse = await prompts({
+      type: 'text',
+      name: 'description',
+      message: 'Enter a description (optional):',
+    });
+
+    const description = descResponse.description || undefined;
+
+    // Configure based on type
+    let backendConfig: any = {
+      type: backendType,
+      description,
+    };
+
+    if (backendType === 'asana') {
+      const asanaConfig = await this.setupAsana();
+      if (!asanaConfig) {
+        console.log('Operation cancelled.');
+        return;
+      }
+      backendConfig.asana = asanaConfig;
+    } else if (backendType === 'local') {
+      const localConfig = await this.setupLocal();
+      if (!localConfig) {
+        console.log('Operation cancelled.');
+        return;
+      }
+      backendConfig.local = localConfig;
+    }
+
+    // Ask if this should be the default
+    const setAsDefault = existing ? false : true; // Auto-set as default if it's the first backend
+
+    let makeDefault = setAsDefault;
+    if (!setAsDefault) {
+      const defaultResponse = await prompts({
+        type: 'confirm',
+        name: 'setDefault',
+        message: 'Set this as the default backend?',
+        initial: false,
+      });
+
+      makeDefault = defaultResponse.setDefault || false;
+    }
+
+    // Save backend
+    try {
+      configManager.addBackend(name, backendConfig, makeDefault);
+      console.log(`\n✓ Backend '${name}' added successfully`);
+      if (makeDefault) {
+        console.log(`✓ Set as default backend`);
+      }
+    } catch (error) {
+      console.error(`\n✗ Failed to add backend: ${error}`);
+      process.exit(1);
+    }
+  }
+
+  private async setupLocal(): Promise<{ basePath: string; teamName: string; projectName: string; projectId: string } | null> {
+    console.log('\n--- Local Configuration ---\n');
+
+    const basePathResponse = await prompts({
+      type: 'text',
+      name: 'basePath',
+      message: 'Enter base path for local storage:',
+      initial: './.minion/local',
+      validate: (value) => value.trim().length > 0 || 'Base path is required',
+    });
+
+    if (!basePathResponse.basePath) {
+      return null;
+    }
+
+    const teamNameResponse = await prompts({
+      type: 'text',
+      name: 'teamName',
+      message: 'Enter team name:',
+      initial: 'default-team',
+      validate: (value) => value.trim().length > 0 || 'Team name is required',
+    });
+
+    if (!teamNameResponse.teamName) {
+      return null;
+    }
+
+    const projectNameResponse = await prompts({
+      type: 'text',
+      name: 'projectName',
+      message: 'Enter project name:',
+      initial: 'tasks',
+      validate: (value) => value.trim().length > 0 || 'Project name is required',
+    });
+
+    if (!projectNameResponse.projectName) {
+      return null;
+    }
+
+    const projectIdResponse = await prompts({
+      type: 'text',
+      name: 'projectId',
+      message: 'Enter project ID:',
+      initial: 'default',
+      validate: (value) => value.trim().length > 0 || 'Project ID is required',
+    });
+
+    if (!projectIdResponse.projectId) {
+      return null;
+    }
+
+    return {
+      basePath: basePathResponse.basePath.trim(),
+      teamName: teamNameResponse.teamName.trim(),
+      projectName: projectNameResponse.projectName.trim(),
+      projectId: projectIdResponse.projectId.trim(),
+    };
+  }
+
+  private async removeBackendCmd(name: string): Promise<void> {
+    const configManager = new ConfigManager();
+
+    const backend = configManager.getBackend(name);
+    if (!backend) {
+      console.error(`✗ Backend '${name}' not found.`);
+      return;
+    }
+
+    const response = await prompts({
+      type: 'confirm',
+      name: 'confirm',
+      message: `Are you sure you want to remove backend '${name}'?`,
+      initial: false,
+    });
+
+    if (!response.confirm) {
+      console.log('Operation cancelled.');
+      return;
+    }
+
+    try {
+      configManager.removeBackend(name);
+      console.log(`✓ Backend '${name}' removed successfully`);
+    } catch (error) {
+      console.error(`✗ Failed to remove backend: ${error}`);
+    }
+  }
+
+  private async setDefaultBackendCmd(name: string): Promise<void> {
+    const configManager = new ConfigManager();
+
+    const backend = configManager.getBackend(name);
+    if (!backend) {
+      console.error(`✗ Backend '${name}' not found.`);
+      return;
+    }
+
+    try {
+      configManager.setDefaultBackend(name);
+      console.log(`✓ Backend '${name}' set as default`);
+    } catch (error) {
+      console.error(`✗ Failed to set default backend: ${error}`);
+    }
   }
 }
