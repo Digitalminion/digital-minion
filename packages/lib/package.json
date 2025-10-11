@@ -34,7 +34,12 @@
   "bugs": {
     "url": "https://github.com/Digitalminion/digital-minion/issues"
   },
+  "dependencies": {
+    "@digital-minion/data": "^0.1.0",
+    "uuid": "^11.0.4"
+  },
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "@types/asana": "^0.18.16",
     "@types/chai": "^5.2.2",
     "@types/node": "^24.7.0",

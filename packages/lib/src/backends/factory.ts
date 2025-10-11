@@ -16,6 +16,10 @@ import { IListBackend } from './core/list-backend';
 import { ITemplateBackend } from './core/template-backend';
 import { ITimeTrackingBackend } from './core/time-tracking-backend';
 
+// Import all backend implementations
+import * as AsanaBackends from './asana';
+import * as LocalBackends from './local';
+
 /**
  * Supported backend types for task storage.
  */
@@ -82,13 +86,12 @@ export class BackendFactory {
   static createConfigBackend(backendType: BackendType, accessToken?: string): IConfigBackend {
     switch (backendType) {
       case 'asana':
-        const { AsanaConfigBackend } = require('./asana');
         if (!accessToken) {
           throw new Error('AsanaConfigBackend requires accessToken parameter');
         }
-        return new AsanaConfigBackend(accessToken);
+        return new AsanaBackends.AsanaConfigBackend(accessToken);
       case 'local':
-        throw new Error('Local config backend not yet implemented');
+        return new LocalBackends.LocalConfigBackend();
       default:
         throw new Error(`Unsupported backend type: ${backendType}`);
     }
@@ -97,10 +100,9 @@ export class BackendFactory {
   static createTaskBackend(config: MinionConfig): ITaskBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaTaskBackend } = require('./asana');
-        return new AsanaTaskBackend(config.config);
+        return new AsanaBackends.AsanaTaskBackend(config.config);
       case 'local':
-        throw new Error('Local task backend not yet implemented');
+        return new LocalBackends.LocalTaskBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -109,10 +111,9 @@ export class BackendFactory {
   static createTagBackend(config: MinionConfig): ITagBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaTagBackend } = require('./asana');
-        return new AsanaTagBackend(config.config);
+        return new AsanaBackends.AsanaTagBackend(config.config);
       case 'local':
-        throw new Error('Local tag backend not yet implemented');
+        return new LocalBackends.LocalTagBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -121,10 +122,9 @@ export class BackendFactory {
   static createSectionBackend(config: MinionConfig): ISectionBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaSectionBackend } = require('./asana');
-        return new AsanaSectionBackend(config.config);
+        return new AsanaBackends.AsanaSectionBackend(config.config);
       case 'local':
-        throw new Error('Local section backend not yet implemented');
+        return new LocalBackends.LocalSectionBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -133,10 +133,9 @@ export class BackendFactory {
   static createSubtaskBackend(config: MinionConfig): ISubtaskBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaSubtaskBackend } = require('./asana');
-        return new AsanaSubtaskBackend(config.config);
+        return new AsanaBackends.AsanaSubtaskBackend(config.config);
       case 'local':
-        throw new Error('Local subtask backend not yet implemented');
+        return new LocalBackends.LocalSubtaskBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -145,10 +144,9 @@ export class BackendFactory {
   static createCommentBackend(config: MinionConfig): ICommentBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaCommentBackend } = require('./asana');
-        return new AsanaCommentBackend(config.config);
+        return new AsanaBackends.AsanaCommentBackend(config.config);
       case 'local':
-        throw new Error('Local comment backend not yet implemented');
+        return new LocalBackends.LocalCommentBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -157,10 +155,9 @@ export class BackendFactory {
   static createAttachmentBackend(config: MinionConfig): IAttachmentBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaAttachmentBackend } = require('./asana');
-        return new AsanaAttachmentBackend(config.config);
+        return new AsanaBackends.AsanaAttachmentBackend(config.config);
       case 'local':
-        throw new Error('Local attachment backend not yet implemented');
+        return new LocalBackends.LocalAttachmentBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -169,10 +166,9 @@ export class BackendFactory {
   static createDependencyBackend(config: MinionConfig): IDependencyBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaDependencyBackend } = require('./asana');
-        return new AsanaDependencyBackend(config.config);
+        return new AsanaBackends.AsanaDependencyBackend(config.config);
       case 'local':
-        throw new Error('Local dependency backend not yet implemented');
+        return new LocalBackends.LocalDependencyBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -181,10 +177,9 @@ export class BackendFactory {
   static createWorkflowBackend(config: MinionConfig): IWorkflowBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaWorkflowBackend } = require('./asana');
-        return new AsanaWorkflowBackend(config.config);
+        return new AsanaBackends.AsanaWorkflowBackend(config.config);
       case 'local':
-        throw new Error('Local workflow backend not yet implemented');
+        return new LocalBackends.LocalWorkflowBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -193,10 +188,9 @@ export class BackendFactory {
   static createStatusBackend(config: MinionConfig): IStatusBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaStatusBackend } = require('./asana');
-        return new AsanaStatusBackend(config.config);
+        return new AsanaBackends.AsanaStatusBackend(config.config);
       case 'local':
-        throw new Error('Local status backend not yet implemented');
+        return new LocalBackends.LocalStatusBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -205,10 +199,9 @@ export class BackendFactory {
   static createProjectBackend(config: MinionConfig): IProjectBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaProjectBackend } = require('./asana');
-        return new AsanaProjectBackend(config.config);
+        return new AsanaBackends.AsanaProjectBackend(config.config);
       case 'local':
-        throw new Error('Local project backend not yet implemented');
+        return new LocalBackends.LocalProjectBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -217,10 +210,9 @@ export class BackendFactory {
   static createUserBackend(config: MinionConfig): IUserBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaUserBackend } = require('./asana');
-        return new AsanaUserBackend(config.config);
+        return new AsanaBackends.AsanaUserBackend(config.config);
       case 'local':
-        throw new Error('Local user backend not yet implemented');
+        return new LocalBackends.LocalUserBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -229,10 +221,9 @@ export class BackendFactory {
   static createBatchBackend(config: MinionConfig): IBatchBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaBatchBackend } = require('./asana');
-        return new AsanaBatchBackend(config.config);
+        return new AsanaBackends.AsanaBatchBackend(config.config);
       case 'local':
-        throw new Error('Local batch backend not yet implemented');
+        return new LocalBackends.LocalBatchBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -241,10 +232,9 @@ export class BackendFactory {
   static createExportBackend(config: MinionConfig): IExportBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaExportBackend } = require('./asana');
-        return new AsanaExportBackend(config.config);
+        return new AsanaBackends.AsanaExportBackend(config.config);
       case 'local':
-        throw new Error('Local export backend not yet implemented');
+        return new LocalBackends.LocalExportBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -253,10 +243,9 @@ export class BackendFactory {
   static createListBackend(config: MinionConfig): IListBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaListBackend } = require('./asana');
-        return new AsanaListBackend(config.config);
+        return new AsanaBackends.AsanaListBackend(config.config);
       case 'local':
-        throw new Error('Local list backend not yet implemented');
+        return new LocalBackends.LocalListBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -265,10 +254,9 @@ export class BackendFactory {
   static createTemplateBackend(config: MinionConfig): ITemplateBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaTemplateBackend } = require('./asana');
-        return new AsanaTemplateBackend(config.config);
+        return new AsanaBackends.AsanaTemplateBackend(config.config);
       case 'local':
-        throw new Error('Local template backend not yet implemented');
+        return new LocalBackends.LocalTemplateBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }
@@ -277,10 +265,9 @@ export class BackendFactory {
   static createTimeTrackingBackend(config: MinionConfig): ITimeTrackingBackend {
     switch (config.backend) {
       case 'asana':
-        const { AsanaTimeTrackingBackend } = require('./asana');
-        return new AsanaTimeTrackingBackend(config.config);
+        return new AsanaBackends.AsanaTimeTrackingBackend(config.config);
       case 'local':
-        throw new Error('Local time tracking backend not yet implemented');
+        return new LocalBackends.LocalTimeTrackingBackend(config.config);
       default:
         throw new Error(`Unsupported backend type: ${config.backend}`);
     }

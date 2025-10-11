@@ -54,3 +54,9 @@ export {
 
 // Export factory and configuration types
 export { BackendFactory, BackendType, MinionConfig, AllBackends } from './factory';
+
+// Export all local backend implementations
+export * as local from './local';
+
+// Export all Asana backend implementations
+export * as asana from './asana';
