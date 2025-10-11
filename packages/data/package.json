@@ -1,0 +1,36 @@
+{
+  "name": "@digital-minion/data",
+  "version": "0.1.0",
+  "description": "Data storage, namespace management, and data layer operations for Digital Minion",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --config jest.config.js",
+    "test:watch": "jest --config jest.config.js --watch",
+    "test:coverage": "jest --config jest.config.js --coverage",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "digital-minion",
+    "data-layer",
+    "namespace",
+    "partition",
+    "json-storage",
+    "jsonl",
+    "repository",
+    "map-reduce"
+  ],
+  "author": "Digital Minion",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
