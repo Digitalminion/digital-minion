@@ -135,7 +135,10 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# Minion configuration (contains API credentials)
-.minion/
-asana.config.json
+# Minion secrets and local data
+.minion/secrets.json
+.minion/asana.config.json
+.minion/asana.config.json.old
+.minion/local/
+.minion/sync-state/
 .claude/*

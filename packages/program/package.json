@@ -1,0 +1,55 @@
+{
+  "name": "@digital-minion/program",
+  "version": "0.1.0",
+  "description": "Program management abstraction layer for Digital Minion - Entity/BU/Org/Team hierarchy with Matter/Project/Maintenance functions",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "program-management",
+    "organizational-model",
+    "matter",
+    "project",
+    "maintenance",
+    "business-unit",
+    "entity",
+    "digital-minion"
+  ],
+  "author": "Digital Minion",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Digitalminion/digital-minion.git",
+    "directory": "packages/program"
+  },
+  "homepage": "https://github.com/Digitalminion/digital-minion#readme",
+  "bugs": {
+    "url": "https://github.com/Digitalminion/digital-minion/issues"
+  },
+  "dependencies": {
+    "@digital-minion/lib": "^1.0.0",
+    "@digital-minion/data": "^0.1.0",
+    "uuid": "^11.0.4"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "@types/node": "^24.7.0",
+    "@vitest/ui": "^3.2.4",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.3.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

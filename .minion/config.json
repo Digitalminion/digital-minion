@@ -1,0 +1,28 @@
+{
+  "defaultBackend": "local-dev",
+  "backends": {
+    "default": {
+      "type": "asana",
+      "description": "Migrated asana backend",
+      "asana": {
+        "workspaceId": "9102833206765",
+        "workspaceName": "digitalminion.com",
+        "teamId": "1211544707154179",
+        "teamName": "Agents",
+        "projectId": "1211549945894247",
+        "projectName": "tasks"
+      }
+    },
+    "local-dev": {
+      "type": "local",
+      "description": "Local development backend",
+      "local": {
+        "basePath": "./.minion/local",
+        "teamName": "Agents",
+        "projectName": "tasks",
+        "projectId": "default",
+        "enableCaching": false
+      }
+    }
+  }
+}

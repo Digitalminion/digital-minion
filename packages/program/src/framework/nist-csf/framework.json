@@ -1,0 +1,90 @@
+{
+  "id": "nist-csf",
+  "name": "NIST Cybersecurity Framework",
+  "version": "2.0",
+  "adoptedDate": "2025-10-12",
+  "description": "The NIST Cybersecurity Framework (CSF) provides a policy framework of computer security guidance for how private sector organizations can assess and improve their ability to prevent, detect, and respond to cyber attacks.",
+  "organization": "global-information-security",
+  "team": "global-threat-management",
+  "categories": [
+    {
+      "id": "identify",
+      "name": "Identify",
+      "description": "Develop an organizational understanding to manage cybersecurity risk to systems, people, assets, data, and capabilities",
+      "order": 0
+    },
+    {
+      "id": "protect",
+      "name": "Protect",
+      "description": "Develop and implement appropriate safeguards to ensure delivery of critical services",
+      "order": 1
+    },
+    {
+      "id": "detect",
+      "name": "Detect",
+      "description": "Develop and implement activities to identify the occurrence of a cybersecurity event",
+      "order": 2
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "description": "Develop and implement activities to take action regarding a detected cybersecurity incident",
+      "order": 3
+    },
+    {
+      "id": "recover",
+      "name": "Recover",
+      "description": "Develop and implement activities to maintain plans for resilience and to restore any capabilities or services that were impaired due to a cybersecurity incident",
+      "order": 4
+    },
+    {
+      "id": "govern",
+      "name": "Govern",
+      "description": "Establish and monitor the organization's cybersecurity risk management strategy, expectations, and policy",
+      "order": 5
+    }
+  ],
+  "maturityLevels": [
+    {
+      "level": 0,
+      "name": "Partial",
+      "description": "Organizational cybersecurity risk management practices are not formalized, and risk is managed in an ad hoc and sometimes reactive manner"
+    },
+    {
+      "level": 1,
+      "name": "Risk Informed",
+      "description": "Risk management practices are approved by management but may not be established as organizational-wide policy"
+    },
+    {
+      "level": 2,
+      "name": "Repeatable",
+      "description": "The organization's risk management practices are formally approved and expressed as policy"
+    },
+    {
+      "level": 3,
+      "name": "Adaptive",
+      "description": "The organization adapts its cybersecurity practices based on lessons learned and predictive indicators derived from previous and current cybersecurity activities"
+    }
+  ],
+  "scope": {
+    "administrativeUnit": "digital-minion",
+    "businessUnit": "corp",
+    "applicableOrganizations": ["*"],
+    "applicableTeams": ["*"]
+  },
+  "status": "active",
+  "totalControls": 0,
+  "lastAssessmentDate": null,
+  "nextAssessmentDate": "2026-04-12",
+  "customProperties": {
+    "source": "https://www.nist.gov/cyberframework",
+    "officialVersion": "2.0",
+    "releaseDate": "2024-02-26"
+  },
+  "metadata": {
+    "createdAt": "2025-10-12T00:00:00.000Z",
+    "updatedAt": "2025-10-12T00:00:00.000Z",
+    "createdBy": "system",
+    "updatedBy": "system"
+  }
+}

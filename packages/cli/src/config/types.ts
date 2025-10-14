@@ -33,6 +33,26 @@ export interface AsanaConfig {
 }
 
 /**
+ * Secret credentials for Asana backend.
+ * Stored separately from main config for security.
+ */
+export interface AsanaSecrets {
+  /** Personal access token for Asana API authentication. */
+  accessToken: string;
+}
+
+/**
+ * Secrets structure that maps backend names to their credentials.
+ * Stored in a separate secrets.json file that should be gitignored.
+ */
+export interface Secrets {
+  [backendName: string]: {
+    asana?: AsanaSecrets;
+    // Future: add other backend secret types here
+  };
+}
+
+/**
  * Configuration for Local backend storage.
  *
  * Contains settings for local file-based task storage.

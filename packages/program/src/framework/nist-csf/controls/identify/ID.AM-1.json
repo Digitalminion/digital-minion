@@ -1,0 +1,69 @@
+{
+  "id": "nist-csf-ID.AM-1",
+  "controlId": "ID.AM-1",
+  "frameworkId": "nist-csf",
+  "frameworkName": "NIST Cybersecurity Framework",
+  "category": "identify",
+  "subcategory": "Asset Management",
+  "name": "Physical devices and systems within the organization are inventoried",
+  "description": "Maintain an accurate, up-to-date inventory of all physical devices and systems within the organization, including information about device type, location, owner, and criticality.",
+  "guidance": "Organizations should establish and maintain a comprehensive inventory of all physical devices that connect to the organization's network or process, store, or transmit organizational data. This includes but is not limited to: servers, workstations, laptops, mobile devices, network equipment, IoT devices, and operational technology. The inventory should be regularly updated to reflect additions, changes, and removals. Automated discovery tools can help maintain accuracy.",
+  "implementationStatus": "partial",
+  "maturityLevel": "1",
+  "priority": "high",
+  "assignedTo": {
+    "organization": "global-information-security",
+    "team": "global-threat-management",
+    "roles": ["SecurityAnalyst", "SeniorSecurityAnalyst"]
+  },
+  "mappedPolicies": [
+    "policy-vulnerability-management-1760225042328"
+  ],
+  "mappedRoles": [
+    "role-securityanalyst-1760225042384",
+    "role-seniorsecurityanalyst-1760225042407"
+  ],
+  "mappedMethods": [],
+  "references": [
+    "CIS Controls v8: Control 1 - Inventory and Control of Enterprise Assets",
+    "ISO/IEC 27001:2013: A.8.1.1",
+    "COBIT 5: BAI09.01",
+    "ISA 62443-2-1:2009: 4.2.3.4"
+  ],
+  "evidenceLocations": [
+    {
+      "type": "system-output",
+      "uri": "service://asset-management-system/inventory-report",
+      "description": "Automated asset inventory from enterprise asset management system",
+      "lastVerified": "2025-10-01T00:00:00.000Z"
+    },
+    {
+      "type": "documentation",
+      "uri": "filesystem:///.minion/local/evidence/asset-inventory-procedure.pdf",
+      "description": "Asset inventory maintenance procedure document"
+    }
+  ],
+  "lastAssessed": "2025-09-15",
+  "nextAssessment": "2026-03-15",
+  "assessmentNotes": "Asset inventory maintained but lacks full automation for IoT and OT devices. Manual processes still required for some asset types.",
+  "notes": "Working towards full automation. Current coverage: Servers (100%), Workstations (100%), Network devices (95%), Mobile devices (90%), IoT/OT (60%). Need to improve IoT/OT device discovery and cataloging.",
+  "tags": ["asset-management", "inventory", "discovery"],
+  "comments": [],
+  "attachments": [],
+  "links": [
+    {
+      "id": "link-1",
+      "type": "documentation",
+      "url": "https://www.nist.gov/privacy-framework/nist-csf",
+      "title": "NIST CSF Official Documentation",
+      "addedAt": "2025-10-12T00:00:00.000Z"
+    }
+  ],
+  "metadata": {
+    "createdAt": "2025-10-12T00:00:00.000Z",
+    "updatedAt": "2025-10-12T00:00:00.000Z",
+    "createdBy": "system",
+    "updatedBy": "system",
+    "version": 1
+  }
+}

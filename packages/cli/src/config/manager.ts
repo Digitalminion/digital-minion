@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { MinionConfig, LegacyMinionConfig, BackendConfiguration } from './types';
+import { MinionConfig, LegacyMinionConfig, BackendConfiguration, Secrets } from './types';
 
 const CONFIG_DIR = '.minion';
 const CONFIG_FILE = 'config.json';
+const SECRETS_FILE = 'secrets.json';
 const LEGACY_CONFIG_FILE = 'asana.config.json';
 
 /**
@@ -14,6 +15,7 @@ const LEGACY_CONFIG_FILE = 'asana.config.json';
  */
 export class ConfigManager {
   private configPath: string;
+  private secretsPath: string;
   private legacyConfigPath: string;
   private baseDir: string;
 
@@ -26,6 +28,7 @@ export class ConfigManager {
   constructor(baseDir: string = process.cwd()) {
     this.baseDir = baseDir;
     this.configPath = path.join(baseDir, CONFIG_DIR, CONFIG_FILE);
+    this.secretsPath = path.join(baseDir, CONFIG_DIR, SECRETS_FILE);
     this.legacyConfigPath = path.join(baseDir, CONFIG_DIR, LEGACY_CONFIG_FILE);
   }
 
@@ -40,12 +43,124 @@ export class ConfigManager {
   }
 
   /**
+   * Loads secrets from the filesystem.
+   *
+   * Returns:
+   *   Parsed Secrets object if file exists, empty object if not found.
+   *
+   * Raises:
+   *   Error: If secrets file exists but cannot be read or parsed.
+   */
+  private loadSecrets(): Secrets {
+    if (!fs.existsSync(this.secretsPath)) {
+      return {};
+    }
+
+    try {
+      const content = fs.readFileSync(this.secretsPath, 'utf-8');
+      return JSON.parse(content) as Secrets;
+    } catch (error) {
+      throw new Error(`Failed to load secrets: ${error}`);
+    }
+  }
+
+  /**
+   * Saves secrets to the filesystem.
+   *
+   * Args:
+   *   secrets: Secrets object to save.
+   *
+   * Raises:
+   *   Error: If secrets cannot be written to disk.
+   */
+  private saveSecrets(secrets: Secrets): void {
+    const configDir = path.dirname(this.secretsPath);
+
+    // Create .minion directory if it doesn't exist
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+
+    try {
+      fs.writeFileSync(this.secretsPath, JSON.stringify(secrets, null, 2), 'utf-8');
+    } catch (error) {
+      throw new Error(`Failed to save secrets: ${error}`);
+    }
+  }
+
+  /**
+   * Merges secrets into the configuration.
+   *
+   * Args:
+   *   config: Configuration without secrets.
+   *   secrets: Secrets to merge in.
+   *
+   * Returns:
+   *   Configuration with secrets merged in.
+   */
+  private mergeSecrets(config: MinionConfig, secrets: Secrets): MinionConfig {
+    const mergedConfig = JSON.parse(JSON.stringify(config)) as MinionConfig;
+
+    for (const [backendName, backendConfig] of Object.entries(mergedConfig.backends)) {
+      const backendSecrets = secrets[backendName];
+      if (!backendSecrets) continue;
+
+      if (backendConfig.type === 'asana' && backendSecrets.asana) {
+        if (!backendConfig.asana) {
+          backendConfig.asana = {
+            accessToken: backendSecrets.asana.accessToken,
+            workspaceId: '',
+            workspaceName: '',
+            teamId: '',
+            teamName: '',
+            projectId: '',
+            projectName: '',
+          };
+        } else {
+          backendConfig.asana.accessToken = backendSecrets.asana.accessToken;
+        }
+      }
+    }
+
+    return mergedConfig;
+  }
+
+  /**
+   * Extracts secrets from the configuration.
+   *
+   * Args:
+   *   config: Configuration with secrets.
+   *
+   * Returns:
+   *   Tuple of [config without secrets, extracted secrets].
+   */
+  private extractSecrets(config: MinionConfig): [MinionConfig, Secrets] {
+    const configWithoutSecrets = JSON.parse(JSON.stringify(config)) as MinionConfig;
+    const secrets: Secrets = {};
+
+    for (const [backendName, backendConfig] of Object.entries(configWithoutSecrets.backends)) {
+      if (backendConfig.type === 'asana' && backendConfig.asana) {
+        const { accessToken, ...asanaWithoutToken } = backendConfig.asana;
+
+        secrets[backendName] = {
+          asana: { accessToken },
+        };
+
+        backendConfig.asana = asanaWithoutToken as any;
+      }
+    }
+
+    return [configWithoutSecrets, secrets];
+  }
+
+  /**
    * Loads configuration from the filesystem.
    *
    * Automatically migrates legacy single-backend configs to the new multi-backend format.
+   * Merges secrets from secrets.json into the configuration.
    *
    * Returns:
-   *   Parsed MinionConfig object if file exists, null if not found.
+   *   Parsed MinionConfig object with secrets merged if file exists, null if not found.
    *
    * Raises:
    *   Error: If configuration file exists but cannot be read or parsed.
@@ -55,7 +170,28 @@ export class ConfigManager {
     if (this.exists()) {
       try {
         const content = fs.readFileSync(this.configPath, 'utf-8');
-        return JSON.parse(content) as MinionConfig;
+        const config = JSON.parse(content) as MinionConfig;
+        const secrets = this.loadSecrets();
+
+        // Check if this is an old-style config with secrets still embedded
+        // (for backward compatibility during migration)
+        let needsMigration = false;
+        for (const backendConfig of Object.values(config.backends)) {
+          if (backendConfig.type === 'asana' && backendConfig.asana?.accessToken) {
+            needsMigration = true;
+            break;
+          }
+        }
+
+        if (needsMigration) {
+          // Extract secrets and save them separately
+          const [configWithoutSecrets, extractedSecrets] = this.extractSecrets(config);
+          this.saveSecrets(extractedSecrets);
+          fs.writeFileSync(this.configPath, JSON.stringify(configWithoutSecrets, null, 2), 'utf-8');
+          return config; // Return original config with secrets still in it
+        }
+
+        return this.mergeSecrets(config, secrets);
       } catch (error) {
         throw new Error(`Failed to load configuration: ${error}`);
       }
@@ -68,7 +204,7 @@ export class ConfigManager {
         const legacyConfig = JSON.parse(content) as LegacyMinionConfig;
         const migratedConfig = this.migrateLegacyConfig(legacyConfig);
 
-        // Save migrated config in new format
+        // Save migrated config in new format (will split secrets automatically)
         this.save(migratedConfig);
 
         // Optionally, rename legacy config to .old
@@ -114,10 +250,11 @@ export class ConfigManager {
    * Saves configuration to the filesystem.
    *
    * Creates the .minion directory if it doesn't exist, then writes the
-   * configuration as formatted JSON to asana.config.json.
+   * configuration as formatted JSON to config.json and secrets to secrets.json.
+   * Secrets (like API tokens) are automatically extracted and stored separately.
    *
    * Args:
-   *   config: Configuration object to save.
+   *   config: Configuration object to save (with secrets included).
    *
    * Raises:
    *   Error: If configuration cannot be written to disk.
@@ -131,7 +268,11 @@ export class ConfigManager {
     }
 
     try {
-      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf-8');
+      // Extract secrets and save separately
+      const [configWithoutSecrets, secrets] = this.extractSecrets(config);
+
+      fs.writeFileSync(this.configPath, JSON.stringify(configWithoutSecrets, null, 2), 'utf-8');
+      this.saveSecrets(secrets);
     } catch (error) {
       throw new Error(`Failed to save configuration: ${error}`);
     }
