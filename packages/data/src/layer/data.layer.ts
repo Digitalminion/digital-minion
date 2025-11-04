@@ -207,6 +207,144 @@ export class DataLayer<T = any> {
     return totalDeleted;
   }
 
+  // ===== PATH-BASED OPERATIONS =====
+
+  /**
+   * Insert data using a partition path instead of partition ID.
+   * Automatically creates partition if it doesn't exist.
+   *
+   * @param data Data to insert
+   * @param partitionPath Partition path object (e.g., {framework: 'nist-csf', category: 'identify', artifact: 'control'})
+   */
+  async insertByPath(data: T[], partitionPath: Record<string, string>): Promise<void> {
+    const partitionId = await this.resolveOrCreatePartition(partitionPath);
+    await this.insert(data, partitionId);
+  }
+
+  /**
+   * Query data using partition path patterns.
+   * Supports wildcards - omitted keys match all values.
+   *
+   * @param partitionPath Partition path pattern (partial paths supported for wildcards)
+   * @param options Additional query options (filters, sorting, etc.)
+   */
+  async queryByPath(
+    partitionPath: Partial<Record<string, string>>,
+    options?: Omit<Query<T>, 'partitions'>
+  ): Promise<QueryResult<T>> {
+    const partitionIds = this.resolvePartitionPattern(partitionPath);
+
+    return this.query({
+      ...options,
+      partitions: partitionIds
+    });
+  }
+
+  /**
+   * Resolve partition path to partition ID, creating if needed.
+   *
+   * @param partitionPath Full partition path
+   * @returns Partition ID
+   */
+  private async resolveOrCreatePartition(partitionPath: Record<string, string>): Promise<string> {
+    // Build partition ID from path
+    const partitionId = this.buildPartitionId(partitionPath);
+
+    // Check if partition exists
+    const existing = this.manifestManager.getPartition(partitionId);
+    if (existing) {
+      return partitionId;
+    }
+
+    // Build file system path
+    const fsPath = this.buildFilesystemPath(partitionPath);
+    const location = `${this.config.basePath}/${fsPath}/data-${Date.now()}.${this.config.adapterType}`;
+
+    // Create partition
+    const partition: Partition<T> = {
+      id: partitionId,
+      name: partitionId,
+      type: 'file',
+      location,
+      metadata: {
+        partitionPath,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    };
+
+    // Add to manifest
+    await this.manifestManager.addPartition(partition);
+
+    return partitionId;
+  }
+
+  /**
+   * Resolve partition path pattern to partition IDs.
+   * Supports wildcards via omitted keys.
+   *
+   * @param pattern Partial partition path
+   * @returns Array of matching partition IDs
+   */
+  private resolvePartitionPattern(pattern: Partial<Record<string, string>>): string[] {
+    const allPartitions = this.manifestManager.getAllPartitions();
+    const matchingIds: string[] = [];
+
+    for (const partition of allPartitions) {
+      // Check if partition metadata contains partitionPath
+      if (!partition.metadata?.partitionPath) {
+        continue;
+      }
+
+      const partitionPath = partition.metadata.partitionPath as Record<string, string>;
+
+      // Check if partition matches pattern
+      let matches = true;
+      for (const [key, value] of Object.entries(pattern)) {
+        if (partitionPath[key] !== value) {
+          matches = false;
+          break;
+        }
+      }
+
+      if (matches) {
+        matchingIds.push(partition.id);
+      }
+    }
+
+    return matchingIds;
+  }
+
+  /**
+   * Build partition ID from partition path.
+   * Uses a simple hash of the sorted path entries.
+   *
+   * @param partitionPath Partition path object
+   * @returns Partition ID
+   */
+  private buildPartitionId(partitionPath: Record<string, string>): string {
+    // Sort keys for consistent IDs
+    const sorted = Object.keys(partitionPath).sort();
+    const parts = sorted.map(key => `${key}=${partitionPath[key]}`);
+    return parts.join('_');
+  }
+
+  /**
+   * Build filesystem path from partition path.
+   * Creates directory structure like: key1=value1/key2=value2/key3=value3
+   *
+   * @param partitionPath Partition path object
+   * @returns Filesystem path
+   */
+  private buildFilesystemPath(partitionPath: Record<string, string>): string {
+    // Note: The order of keys matters for filesystem structure
+    // If there's a partition schema, we should use its order
+    // For now, we'll use sorted keys as a fallback
+    const sorted = Object.keys(partitionPath).sort();
+    const parts = sorted.map(key => `${key}=${partitionPath[key]}`);
+    return parts.join('/');
+  }
+
   // ===== INDEX OPERATIONS =====
 
   async createIndex(
