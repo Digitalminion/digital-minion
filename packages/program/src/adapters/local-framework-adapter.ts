@@ -58,6 +58,7 @@ import {
   ImplementationStatus,
   MaturityLevel,
   DocumentationStatus,
+  AssessmentStatus,
 } from '../schema/minion/function/framework';
 
 /**
@@ -233,10 +234,7 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    await this.dataLayer.write({
-      data: [framework],
-      partitionPath: this.getPartitionPath(input.id, '_', 'metadata'),
-    });
+    await this.dataLayer.insertByPath([framework], this.getPartitionPath(input.id, '_', 'metadata'));
 
     return framework;
   }
@@ -245,9 +243,7 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Get a framework by ID.
    */
   async getFramework(frameworkId: string): Promise<ControlFramework> {
-    const result = await this.dataLayer.query({
-      partitionFilter: this.getPartitionPath(frameworkId, '_', 'metadata'),
-    });
+    const result = await this.dataLayer.queryByPath(this.getPartitionPath(frameworkId, '_', 'metadata'));
 
     if (!result.data || result.data.length === 0) {
       throw new Error(`Framework ${frameworkId} not found`);
@@ -260,12 +256,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * List all frameworks.
    */
   async listFrameworks(): Promise<ControlFramework[]> {
-    const result = await this.dataLayer.query({
-      partitionFilter: {
-        ...this.getBasePartitionPath(),
-        category: '_',
-        artifact: 'metadata',
-      },
+    const result = await this.dataLayer.queryByPath({
+      ...this.getBasePartitionPath(),
+      category: '_',
+      artifact: 'metadata',
     });
 
     return (result.data || []) as ControlFramework[];
@@ -289,10 +283,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    await this.dataLayer.write({
-      data: [updated],
-      partitionPath: this.getPartitionPath(frameworkId, '_', 'metadata'),
-    });
+    await this.dataLayer.insertByPath(
+      [updated],
+      this.getPartitionPath(frameworkId, '_', 'metadata')
+    );
 
     return updated;
   }
@@ -340,14 +334,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    await this.dataLayer.write({
-      data: [control],
-      partitionPath: this.getPartitionPath(
+    await this.dataLayer.insertByPath(
+      [control],
+      this.getPartitionPath(
         input.frameworkId,
         input.category || '_',
         'control'
-      ),
-    });
+      )
+    );
 
     // Update framework total controls count
     const framework = await this.getFramework(input.frameworkId);
@@ -366,12 +360,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
     const frameworkId = controlId.split('-')[0];
 
     // Query all control partitions for this framework (across all categories)
-    const result = await this.dataLayer.query({
-      partitionFilter: {
-        ...this.getBasePartitionPath(),
-        framework: frameworkId,
-        artifact: 'control',
-      },
+    const result = await this.dataLayer.queryByPath({
+      ...this.getBasePartitionPath(),
+      framework: frameworkId,
+      artifact: 'control',
     });
 
     const control = (result.data || []).find(
@@ -389,19 +381,17 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * List controls for a framework.
    */
   async listControls(frameworkId: string, filter?: FrameworkFilter): Promise<Control[]> {
-    const partitionFilter: any = {
+    const partitionPath: any = {
       ...this.getBasePartitionPath(),
       framework: frameworkId,
       artifact: 'control',
     };
 
     if (filter?.category && filter.category.length > 0) {
-      partitionFilter.category = filter.category[0]; // Simple implementation for single category
+      partitionPath.category = filter.category[0]; // Simple implementation for single category
     }
 
-    const result = await this.dataLayer.query({
-      partitionFilter,
-    });
+    const result = await this.dataLayer.queryByPath(partitionPath);
 
     let controls = (result.data || []) as Control[];
 
@@ -460,14 +450,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    await this.dataLayer.write({
-      data: [updated],
-      partitionPath: this.getPartitionPath(
+    await this.dataLayer.insertByPath(
+      [updated],
+      this.getPartitionPath(
         control.frameworkId,
         control.category || '_',
         'control'
-      ),
-    });
+      )
+    );
 
     return updated;
   }
@@ -495,7 +485,7 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       frameworkName: input.frameworkId, // TODO: Get actual framework name
       assessmentDate: input.assessmentDate,
       assessor: input.assessor,
-      status: 'planned',
+      status: AssessmentStatus.PLANNED,
       scope: input.scope,
       results: {
         totalControls: 0,
@@ -521,14 +511,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    await this.dataLayer.write({
-      data: [assessment],
-      partitionPath: this.getPartitionPath(
+    await this.dataLayer.insertByPath(
+      [assessment],
+      this.getPartitionPath(
         input.frameworkId,
         '_',
         'assessment'
-      ),
-    });
+      )
+    );
 
     return assessment;
   }
@@ -540,9 +530,9 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
     // Extract framework ID from assessment ID
     const frameworkId = assessmentId.split('-')[0];
 
-    const result = await this.dataLayer.query({
-      partitionFilter: this.getPartitionPath(frameworkId, '_', 'assessment'),
-    });
+    const result = await this.dataLayer.queryByPath(
+      this.getPartitionPath(frameworkId, '_', 'assessment')
+    );
 
     if (!result.data || result.data.length === 0) {
       throw new Error(`Assessment ${assessmentId} not found`);
@@ -555,19 +545,17 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * List assessments.
    */
   async listAssessments(frameworkId?: string): Promise<ControlAssessment[]> {
-    const partitionFilter: any = {
+    const partitionPath: any = {
       ...this.getBasePartitionPath(),
       category: '_',
       artifact: 'assessment',
     };
 
     if (frameworkId) {
-      partitionFilter.framework = frameworkId;
+      partitionPath.framework = frameworkId;
     }
 
-    const result = await this.dataLayer.query({
-      partitionFilter,
-    });
+    const result = await this.dataLayer.queryByPath(partitionPath);
 
     return (result.data || []) as ControlAssessment[];
   }
@@ -590,14 +578,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    await this.dataLayer.write({
-      data: [updated],
-      partitionPath: this.getPartitionPath(
+    await this.dataLayer.insertByPath(
+      [updated],
+      this.getPartitionPath(
         assessment.frameworkId,
         '_',
         'assessment'
-      ),
-    });
+      )
+    );
 
     return updated;
   }
@@ -631,10 +619,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       status: 'open',
     };
 
-    await this.dataLayer.write({
-      data: [gap],
-      partitionPath: this.getPartitionPath(control.frameworkId, control.category || '_', 'gap'),
-    });
+    await this.dataLayer.insertByPath(
+      [gap],
+      this.getPartitionPath(control.frameworkId, control.category || '_', 'gap')
+    );
 
     return gap;
   }
@@ -659,18 +647,16 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * List gaps.
    */
   async listGaps(frameworkId?: string, assessmentId?: string): Promise<ControlGap[]> {
-    const partitionFilter: any = {
+    const partitionPath: any = {
       ...this.getBasePartitionPath(),
       artifact: 'gap',
     };
 
     if (frameworkId) {
-      partitionFilter.framework = frameworkId;
+      partitionPath.framework = frameworkId;
     }
 
-    const result = await this.dataLayer.query({
-      partitionFilter,
-    });
+    const result = await this.dataLayer.queryByPath(partitionPath);
 
     return (result.data || []) as ControlGap[];
   }
@@ -683,14 +669,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Add a mapping.
    */
   async addMapping(mapping: ControlMapping): Promise<void> {
-    await this.dataLayer.write({
-      data: [mapping],
-      partitionPath: this.getPartitionPath(
+    await this.dataLayer.insertByPath(
+      [mapping],
+      this.getPartitionPath(
         mapping.frameworkId,
         '_',
         'mapping'
-      ),
-    });
+      )
+    );
   }
 
   /**
@@ -710,11 +696,9 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Get mappings.
    */
   async getMappings(frameworkId: string, controlId?: string): Promise<ControlMapping[]> {
-    const partitionFilter: any = this.getPartitionPath(frameworkId, '_', 'mapping');
+    const partitionPath: any = this.getPartitionPath(frameworkId, '_', 'mapping');
 
-    const result = await this.dataLayer.query({
-      partitionFilter,
-    });
+    const result = await this.dataLayer.queryByPath(partitionPath);
 
     let mappings = (result.data || []) as ControlMapping[];
 
