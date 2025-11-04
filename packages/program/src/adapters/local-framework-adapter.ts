@@ -15,19 +15,24 @@
  *             category=_/
  *               artifact=metadata/
  *                 data-{hash}.jsonl        # Framework definition
- *             category=identify/
- *               artifact=control/
- *                 data-{hash}.jsonl        # Identify controls
- *             category=protect/
- *               artifact=control/
- *                 data-{hash}.jsonl        # Protect controls
- *             category=_/
  *               artifact=assessment/
  *                 data-{hash}.jsonl        # Assessments
  *               artifact=mapping/
  *                 data-{hash}.jsonl        # Mappings
+ *               artifact=documentation/
+ *                 data-{hash}.jsonl        # Framework-wide documentation
+ *             category=identify/
+ *               artifact=control/
+ *                 data-{hash}.jsonl        # Identify controls
+ *               artifact=evidence/
+ *                 data-{hash}.jsonl        # Evidence for Identify controls
+ *             category=protect/
+ *               artifact=control/
+ *                 data-{hash}.jsonl        # Protect controls
+ *               artifact=evidence/
+ *                 data-{hash}.jsonl        # Evidence for Protect controls
  *               artifact=gap/
- *                 data-{hash}.jsonl        # Gaps
+ *                 data-{hash}.jsonl        # Gaps for Protect controls
  */
 
 import { DataLayer, NamespaceMetadataManager } from '@digital-minion/data';
@@ -43,6 +48,8 @@ import {
   ControlAssessment,
   ControlGap,
   ControlMapping,
+  Evidence,
+  Documentation,
   CreateFrameworkInput,
   CreateControlInput,
   CreateAssessmentInput,
@@ -50,6 +57,7 @@ import {
   FrameworkFilter,
   ImplementationStatus,
   MaturityLevel,
+  DocumentationStatus,
 } from '../schema/minion/function/framework';
 
 /**
@@ -175,7 +183,7 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
             },
             artifact: {
               type: 'string',
-              regex: '^(metadata|control|assessment|mapping|gap)$',
+              regex: '^(metadata|control|assessment|mapping|gap|evidence|documentation)$',
               required: true,
               description: 'Type of framework artifact',
             },

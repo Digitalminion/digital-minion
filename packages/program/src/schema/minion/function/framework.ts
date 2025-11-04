@@ -12,6 +12,8 @@
  * - Assessment → .minion/local/.../framework={id}/category=_/artifact=assessment/data-{hash}.jsonl
  * - Mapping → .minion/local/.../framework={id}/category=_/artifact=mapping/data-{hash}.jsonl
  * - Gap → .minion/local/.../framework={id}/category={category}/artifact=gap/data-{hash}.jsonl
+ * - Evidence → .minion/local/.../framework={id}/category={category}/artifact=evidence/data-{hash}.jsonl
+ * - Documentation → .minion/local/.../framework={id}/category=_/artifact=documentation/data-{hash}.jsonl
  */
 
 import { WorkItem, Priority, Comment, Attachment, Link } from '../standard';
@@ -565,6 +567,164 @@ export interface CrossFrameworkMapping {
     policyId?: string;
     methodId?: string;
     roleIds?: string[];
+  };
+}
+
+/**
+ * Evidence represents proof of control implementation.
+ */
+export interface Evidence {
+  /** Unique identifier */
+  id: string;
+
+  /** Related control ID */
+  controlId: string;
+
+  /** Framework ID */
+  frameworkId: string;
+
+  /** Control category */
+  category: string;
+
+  /** Evidence type */
+  type: EvidenceType;
+
+  /** Location URI (filesystem://, service://, url://, etc.) */
+  uri: string;
+
+  /** Evidence title/name */
+  title: string;
+
+  /** Description */
+  description?: string;
+
+  /** When evidence was collected */
+  collectedDate: string;
+
+  /** Who collected the evidence */
+  collectedBy?: string;
+
+  /** Last verification date */
+  verifiedDate?: string;
+
+  /** Who verified the evidence */
+  verifiedBy?: string;
+
+  /** Verification status */
+  status: 'valid' | 'expired' | 'pending-review' | 'invalid';
+
+  /** Expiration date (if applicable) */
+  expirationDate?: string;
+
+  /** Tags for categorization */
+  tags?: string[];
+
+  /** Comments */
+  comments?: Comment[];
+
+  /** Attachments */
+  attachments?: Attachment[];
+
+  /** Metadata */
+  metadata: {
+    createdAt: string;
+    updatedAt: string;
+    createdBy?: string;
+    updatedBy?: string;
+  };
+}
+
+/**
+ * Documentation artifact status
+ */
+export enum DocumentationStatus {
+  /** Documentation is in draft state */
+  DRAFT = 'draft',
+
+  /** Documentation is under review */
+  UNDER_REVIEW = 'under-review',
+
+  /** Documentation is approved and active */
+  ACTIVE = 'active',
+
+  /** Documentation is deprecated but still accessible */
+  DEPRECATED = 'deprecated',
+
+  /** Documentation has been archived */
+  ARCHIVED = 'archived',
+}
+
+/**
+ * Documentation represents policies, procedures, runbooks, and other framework documentation.
+ */
+export interface Documentation {
+  /** Unique identifier */
+  id: string;
+
+  /** Related control ID (null for framework-wide docs) */
+  controlId?: string;
+
+  /** Framework ID */
+  frameworkId: string;
+
+  /** Documentation type */
+  type: 'policy' | 'procedure' | 'standard' | 'guideline' | 'runbook' | 'playbook' | 'other';
+
+  /** Document title */
+  title: string;
+
+  /** Description */
+  description?: string;
+
+  /** Location URI */
+  uri: string;
+
+  /** Document version */
+  version: string;
+
+  /** Status */
+  status: DocumentationStatus;
+
+  /** Document owner */
+  owner?: string;
+
+  /** Approved date */
+  approvedDate?: string;
+
+  /** Approved by */
+  approvedBy?: string;
+
+  /** Next review date */
+  reviewDate?: string;
+
+  /** Review frequency (in days) */
+  reviewFrequency?: number;
+
+  /** Effective date */
+  effectiveDate?: string;
+
+  /** Expiration date */
+  expirationDate?: string;
+
+  /** Tags for categorization */
+  tags?: string[];
+
+  /** Related documents */
+  relatedDocuments?: string[];
+
+  /** Comments */
+  comments?: Comment[];
+
+  /** Attachments */
+  attachments?: Attachment[];
+
+  /** Metadata */
+  metadata: {
+    createdAt: string;
+    updatedAt: string;
+    createdBy?: string;
+    updatedBy?: string;
+    version?: number;
   };
 }
 
