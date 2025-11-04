@@ -6,11 +6,12 @@
  * Control frameworks provide structured approaches to governance,
  * risk management, compliance, and security (e.g., NIST CSF, ISO 27001).
  *
- * Storage Mapping:
- * - ControlFramework → Stored in packages/program/src/framework/{framework-name}/framework.json
- * - Control → Stored in .minion/local with partition schema
- * - Assessment → Stored in packages/program/src/framework/{framework-name}/assessments/
- * - Mapping → Stored in packages/program/src/framework/{framework-name}/mappings/
+ * Storage Mapping (All stored in .minion/local with partitioned JSONL):
+ * - ControlFramework → .minion/local/.../framework={id}/category=_/artifact=metadata/data-{hash}.jsonl
+ * - Control → .minion/local/.../framework={id}/category={category}/artifact=control/data-{hash}.jsonl
+ * - Assessment → .minion/local/.../framework={id}/category=_/artifact=assessment/data-{hash}.jsonl
+ * - Mapping → .minion/local/.../framework={id}/category=_/artifact=mapping/data-{hash}.jsonl
+ * - Gap → .minion/local/.../framework={id}/category={category}/artifact=gap/data-{hash}.jsonl
  */
 
 import { WorkItem, Priority, Comment, Attachment, Link } from '../standard';

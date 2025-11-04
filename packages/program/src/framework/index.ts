@@ -15,3 +15,6 @@ export type { IFrameworkAdapter, IFrameworkManager } from '../schema/minion/fram
 
 // Re-export setup utilities
 export * from './setup';
+
+// Re-export migration utilities
+export * from './migrate';

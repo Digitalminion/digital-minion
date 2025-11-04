@@ -1,12 +1,42 @@
 /**
- * Local Framework Adapter
+ * Local Framework Adapter (New Implementation)
  *
  * Implements IFrameworkAdapter using @digital-minion/data for storage.
- * Stores framework control data in partitioned JSONL files.
+ * Stores ALL framework data in partitioned JSONL files in .minion/local.
+ *
+ * Storage Structure:
+ * .minion/local/
+ *   administrative_unit={au}/
+ *     business_unit={bu}/
+ *       organization={org}/
+ *         team={team}/
+ *           framework.manifest.json
+ *           framework={framework-id}/
+ *             category=_/
+ *               artifact=metadata/
+ *                 data-{hash}.jsonl        # Framework definition
+ *             category=identify/
+ *               artifact=control/
+ *                 data-{hash}.jsonl        # Identify controls
+ *             category=protect/
+ *               artifact=control/
+ *                 data-{hash}.jsonl        # Protect controls
+ *             category=_/
+ *               artifact=assessment/
+ *                 data-{hash}.jsonl        # Assessments
+ *               artifact=mapping/
+ *                 data-{hash}.jsonl        # Mappings
+ *               artifact=gap/
+ *                 data-{hash}.jsonl        # Gaps
  */
 
 import { DataLayer, NamespaceMetadataManager } from '@digital-minion/data';
-import { IFrameworkAdapter, BackendAdapterConfig, BackendFeature, SyncResult } from '../schema/minion/framework';
+import {
+  IFrameworkAdapter,
+  BackendAdapterConfig,
+  BackendFeature,
+  SyncResult,
+} from '../schema/minion/framework';
 import {
   ControlFramework,
   Control,
@@ -21,16 +51,11 @@ import {
   ImplementationStatus,
   MaturityLevel,
 } from '../schema/minion/function/framework';
-import { join } from 'path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 
 /**
  * Configuration for Local Framework Adapter.
  */
 export interface LocalFrameworkAdapterConfig extends BackendAdapterConfig {
-  /** Base path for framework data */
-  frameworkBasePath?: string;
-
   /** Base path for .minion/local data storage */
   localBasePath?: string;
 }
@@ -42,25 +67,27 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
   readonly backend: any;
   readonly context: any;
 
-  private frameworkBasePath: string;
   private localBasePath: string;
-  private controlDataLayer?: DataLayer;
+  private dataLayer: DataLayer;
   private metadataManager: NamespaceMetadataManager;
   private initialized = false;
 
   constructor(private config: LocalFrameworkAdapterConfig) {
     this.backend = config.backend;
     this.context = config.context;
-    this.frameworkBasePath = config.frameworkBasePath || './packages/program/src/framework';
     this.localBasePath = config.localBasePath || './.minion/local';
     this.metadataManager = new NamespaceMetadataManager();
+    this.dataLayer = new DataLayer({
+      basePath: this.localBasePath,
+      collection: 'framework',
+      adapterType: 'jsonl',
+    });
   }
 
   /**
    * Check if backend supports a specific feature.
    */
   supportsFeature(feature: BackendFeature): boolean {
-    // Local adapter supports most features through the data layer
     const supported = [
       BackendFeature.TAGS,
       BackendFeature.COMMENTS,
@@ -78,33 +105,26 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       return;
     }
 
-    // Ensure base paths exist
-    if (!existsSync(this.frameworkBasePath)) {
-      mkdirSync(this.frameworkBasePath, { recursive: true });
-    }
-    if (!existsSync(this.localBasePath)) {
-      mkdirSync(this.localBasePath, { recursive: true });
-    }
+    // Initialize namespace with partition schema
+    await this.initializeNamespace();
 
-    // Initialize control data layer with partition schema
-    await this.initializeControlDataLayer();
+    // Initialize data layer
+    await this.dataLayer.initialize();
 
     this.initialized = true;
   }
 
   /**
-   * Initialize the control data layer with partition schema.
+   * Initialize the framework namespace.
    */
-  private async initializeControlDataLayer(): Promise<void> {
-    const namespacePath = join(this.localBasePath, 'framework-controls');
-
-    // Check if namespace exists, create if not
+  private async initializeNamespace(): Promise<void> {
     try {
-      await this.metadataManager.loadMetadata(this.localBasePath, 'framework-controls');
+      // Try to load existing namespace
+      await this.metadataManager.loadMetadata(this.localBasePath, 'framework');
     } catch {
-      // Create namespace with partition schema
+      // Create namespace if it doesn't exist
       await this.metadataManager.createNamespace({
-        namespace: 'framework-controls',
+        namespace: 'framework',
         basePath: this.localBasePath,
         partitionSchema: {
           order: [
@@ -114,8 +134,7 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
             'team',
             'framework',
             'category',
-            'implementation_status',
-            'maturity_level',
+            'artifact',
           ],
           partitions: {
             administrative_unit: {
@@ -132,15 +151,15 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
             },
             organization: {
               type: 'string',
-              regex: '^([a-z0-9-]+|_)$',
+              regex: '^[a-z0-9-]+$',
               required: true,
-              description: 'Organization identifier or _ for entity-wide',
+              description: 'Organization identifier',
             },
             team: {
               type: 'string',
-              regex: '^([a-z0-9-]+|_)$',
+              regex: '^[a-z0-9-]+$',
               required: true,
-              description: 'Team identifier or _ for organization-wide',
+              description: 'Team identifier',
             },
             framework: {
               type: 'string',
@@ -152,34 +171,19 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
               type: 'string',
               regex: '^([a-z0-9-]+|_)$',
               required: true,
-              description: 'Control category/function or _ for uncategorized',
+              description: 'Framework category (identify, protect, detect, etc.) or _ for framework-wide',
             },
-            implementation_status: {
+            artifact: {
               type: 'string',
-              regex: '^(implemented|partial|not-implemented|not-applicable)$',
+              regex: '^(metadata|control|assessment|mapping|gap)$',
               required: true,
-              description: 'Control implementation status',
-            },
-            maturity_level: {
-              type: 'string',
-              regex: '^[0-3]$',
-              required: true,
-              description: 'Maturity level (0-3)',
+              description: 'Type of framework artifact',
             },
           },
         },
         dataFormat: 'jsonl',
       });
     }
-
-    // Initialize data layer
-    this.controlDataLayer = new DataLayer({
-      basePath: this.localBasePath,
-      collection: 'framework-controls',
-      adapterType: 'jsonl',
-    });
-
-    await this.controlDataLayer.initialize();
   }
 
   /**
@@ -189,21 +193,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
     return ['framework', 'control', 'compliance'];
   }
 
-  // Framework operations
+  // ========================================
+  // Framework Operations
+  // ========================================
 
   /**
    * Create a new framework.
    */
   async createFramework(input: CreateFrameworkInput): Promise<ControlFramework> {
-    const frameworkPath = join(this.frameworkBasePath, input.id);
-
-    if (!existsSync(frameworkPath)) {
-      mkdirSync(frameworkPath, { recursive: true });
-      mkdirSync(join(frameworkPath, 'controls'), { recursive: true });
-      mkdirSync(join(frameworkPath, 'mappings'), { recursive: true });
-      mkdirSync(join(frameworkPath, 'assessments'), { recursive: true });
-    }
-
     const framework: ControlFramework = {
       id: input.id,
       name: input.name,
@@ -228,8 +225,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    const frameworkFile = join(frameworkPath, 'framework.json');
-    writeFileSync(frameworkFile, JSON.stringify(framework, null, 2));
+    await this.dataLayer.write({
+      data: [framework],
+      partitionPath: this.getPartitionPath(input.id, '_', 'metadata'),
+    });
 
     return framework;
   }
@@ -238,26 +237,30 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Get a framework by ID.
    */
   async getFramework(frameworkId: string): Promise<ControlFramework> {
-    const frameworkFile = join(this.frameworkBasePath, frameworkId, 'framework.json');
+    const result = await this.dataLayer.query({
+      partitionFilter: this.getPartitionPath(frameworkId, '_', 'metadata'),
+    });
 
-    if (!existsSync(frameworkFile)) {
+    if (!result.data || result.data.length === 0) {
       throw new Error(`Framework ${frameworkId} not found`);
     }
 
-    const data = readFileSync(frameworkFile, 'utf-8');
-    return JSON.parse(data);
+    return result.data[0] as ControlFramework;
   }
 
   /**
    * List all frameworks.
    */
   async listFrameworks(): Promise<ControlFramework[]> {
-    const frameworks: ControlFramework[] = [];
+    const result = await this.dataLayer.query({
+      partitionFilter: {
+        ...this.getBasePartitionPath(),
+        category: '_',
+        artifact: 'metadata',
+      },
+    });
 
-    // TODO: Scan framework directory for all framework.json files
-    // For now, return empty array
-
-    return frameworks;
+    return (result.data || []) as ControlFramework[];
   }
 
   /**
@@ -278,8 +281,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    const frameworkFile = join(this.frameworkBasePath, frameworkId, 'framework.json');
-    writeFileSync(frameworkFile, JSON.stringify(updated, null, 2));
+    await this.dataLayer.write({
+      data: [updated],
+      partitionPath: this.getPartitionPath(frameworkId, '_', 'metadata'),
+    });
 
     return updated;
   }
@@ -289,19 +294,18 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    */
   async deleteFramework(frameworkId: string): Promise<void> {
     // TODO: Implement framework deletion
+    // Need to delete metadata, all controls, assessments, mappings, gaps
     throw new Error('deleteFramework not yet implemented');
   }
 
-  // Control operations
+  // ========================================
+  // Control Operations
+  // ========================================
 
   /**
    * Create a new control.
    */
   async createControl(input: CreateControlInput): Promise<Control> {
-    if (!this.controlDataLayer) {
-      throw new Error('Control data layer not initialized');
-    }
-
     const control: Control = {
       id: `${input.frameworkId}-${input.controlId}`,
       controlId: input.controlId,
@@ -328,22 +332,20 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    // Store control in partitioned data layer
-    await this.controlDataLayer.query({
-      partitionFilter: {
-        administrative_unit: this.context.path.administrativeUnit,
-        business_unit: this.context.path.businessUnit,
-        organization: input.assignedTo.organization,
-        team: input.assignedTo.team,
-        framework: input.frameworkId,
-        category: input.category || '_',
-        implementation_status: input.implementationStatus,
-        maturity_level: input.maturityLevel,
-      },
+    await this.dataLayer.write({
+      data: [control],
+      partitionPath: this.getPartitionPath(
+        input.frameworkId,
+        input.category || '_',
+        'control'
+      ),
     });
 
-    // TODO: Actually write the control data using DataLayer
-    // For now, just return the control object
+    // Update framework total controls count
+    const framework = await this.getFramework(input.frameworkId);
+    await this.updateFramework(input.frameworkId, {
+      totalControls: framework.totalControls + 1,
+    });
 
     return control;
   }
@@ -352,59 +354,114 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Get a control by ID.
    */
   async getControl(controlId: string): Promise<Control> {
-    if (!this.controlDataLayer) {
-      throw new Error('Control data layer not initialized');
+    // Extract framework ID from control ID (format: frameworkId-controlId)
+    const frameworkId = controlId.split('-')[0];
+
+    // Query all control partitions for this framework (across all categories)
+    const result = await this.dataLayer.query({
+      partitionFilter: {
+        ...this.getBasePartitionPath(),
+        framework: frameworkId,
+        artifact: 'control',
+      },
+    });
+
+    const control = (result.data || []).find(
+      (c: Control) => c.id === controlId || c.controlId === controlId
+    );
+
+    if (!control) {
+      throw new Error(`Control ${controlId} not found`);
     }
 
-    // TODO: Query control from data layer
-    throw new Error('getControl not yet implemented');
+    return control as Control;
   }
 
   /**
    * List controls for a framework.
    */
   async listControls(frameworkId: string, filter?: FrameworkFilter): Promise<Control[]> {
-    if (!this.controlDataLayer) {
-      throw new Error('Control data layer not initialized');
-    }
-
     const partitionFilter: any = {
+      ...this.getBasePartitionPath(),
       framework: frameworkId,
+      artifact: 'control',
     };
 
-    if (filter?.implementationStatus) {
-      partitionFilter.implementation_status = filter.implementationStatus;
+    if (filter?.category && filter.category.length > 0) {
+      partitionFilter.category = filter.category[0]; // Simple implementation for single category
     }
 
-    if (filter?.maturityLevel) {
-      partitionFilter.maturity_level = filter.maturityLevel;
-    }
-
-    if (filter?.category) {
-      partitionFilter.category = filter.category;
-    }
-
-    if (filter?.organization) {
-      partitionFilter.organization = filter.organization;
-    }
-
-    if (filter?.team) {
-      partitionFilter.team = filter.team;
-    }
-
-    const result = await this.controlDataLayer.query({
+    const result = await this.dataLayer.query({
       partitionFilter,
     });
 
-    return result.data;
+    let controls = (result.data || []) as Control[];
+
+    // Apply additional filters
+    if (filter) {
+      if (filter.implementationStatus && filter.implementationStatus.length > 0) {
+        controls = controls.filter((c) =>
+          filter.implementationStatus!.includes(c.implementationStatus)
+        );
+      }
+
+      if (filter.maturityLevel && filter.maturityLevel.length > 0) {
+        controls = controls.filter((c) =>
+          filter.maturityLevel!.includes(c.maturityLevel)
+        );
+      }
+
+      if (filter.priority && filter.priority.length > 0) {
+        controls = controls.filter((c) => c.priority && filter.priority!.includes(c.priority));
+      }
+
+      if (filter.assignee) {
+        controls = controls.filter((c) => c.assignedTo.assignee === filter.assignee);
+      }
+
+      if (filter.needsAssessment) {
+        const now = new Date();
+        controls = controls.filter((c) => {
+          if (!c.nextAssessment) return true;
+          return new Date(c.nextAssessment) <= now;
+        });
+      }
+
+      // Apply sorting
+      if (filter.sortBy) {
+        controls = this.sortControls(controls, filter.sortBy, filter.sortDirection);
+      }
+    }
+
+    return controls;
   }
 
   /**
    * Update a control.
    */
   async updateControl(controlId: string, updates: Partial<Control>): Promise<Control> {
-    // TODO: Implement control update
-    throw new Error('updateControl not yet implemented');
+    const control = await this.getControl(controlId);
+
+    const updated: Control = {
+      ...control,
+      ...updates,
+      metadata: {
+        ...control.metadata,
+        updatedAt: new Date().toISOString(),
+        version: (control.metadata.version || 1) + 1,
+      },
+    };
+
+    await this.dataLayer.write({
+      data: [updated],
+      partitionPath: this.getPartitionPath(
+        control.frameworkId,
+        control.category || '_',
+        'control'
+      ),
+    });
+
+    return updated;
   }
 
   /**
@@ -415,7 +472,9 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
     throw new Error('deleteControl not yet implemented');
   }
 
-  // Assessment operations
+  // ========================================
+  // Assessment Operations
+  // ========================================
 
   /**
    * Create an assessment.
@@ -454,14 +513,14 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       },
     };
 
-    const assessmentFile = join(
-      this.frameworkBasePath,
-      input.frameworkId,
-      'assessments',
-      `${assessment.id}.json`
-    );
-
-    writeFileSync(assessmentFile, JSON.stringify(assessment, null, 2));
+    await this.dataLayer.write({
+      data: [assessment],
+      partitionPath: this.getPartitionPath(
+        input.frameworkId,
+        '_',
+        'assessment'
+      ),
+    });
 
     return assessment;
   }
@@ -470,16 +529,39 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Get an assessment by ID.
    */
   async getAssessment(assessmentId: string): Promise<ControlAssessment> {
-    // TODO: Implement assessment retrieval
-    throw new Error('getAssessment not yet implemented');
+    // Extract framework ID from assessment ID
+    const frameworkId = assessmentId.split('-')[0];
+
+    const result = await this.dataLayer.query({
+      partitionFilter: this.getPartitionPath(frameworkId, '_', 'assessment'),
+    });
+
+    if (!result.data || result.data.length === 0) {
+      throw new Error(`Assessment ${assessmentId} not found`);
+    }
+
+    return result.data[0] as ControlAssessment;
   }
 
   /**
    * List assessments.
    */
   async listAssessments(frameworkId?: string): Promise<ControlAssessment[]> {
-    // TODO: Implement assessment listing
-    return [];
+    const partitionFilter: any = {
+      ...this.getBasePartitionPath(),
+      category: '_',
+      artifact: 'assessment',
+    };
+
+    if (frameworkId) {
+      partitionFilter.framework = frameworkId;
+    }
+
+    const result = await this.dataLayer.query({
+      partitionFilter,
+    });
+
+    return (result.data || []) as ControlAssessment[];
   }
 
   /**
@@ -489,8 +571,27 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
     assessmentId: string,
     updates: Partial<ControlAssessment>
   ): Promise<ControlAssessment> {
-    // TODO: Implement assessment update
-    throw new Error('updateAssessment not yet implemented');
+    const assessment = await this.getAssessment(assessmentId);
+
+    const updated: ControlAssessment = {
+      ...assessment,
+      ...updates,
+      metadata: {
+        ...assessment.metadata,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    await this.dataLayer.write({
+      data: [updated],
+      partitionPath: this.getPartitionPath(
+        assessment.frameworkId,
+        '_',
+        'assessment'
+      ),
+    });
+
+    return updated;
   }
 
   /**
@@ -501,15 +602,19 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
     throw new Error('deleteAssessment not yet implemented');
   }
 
-  // Gap operations
+  // ========================================
+  // Gap Operations
+  // ========================================
 
   /**
    * Add a control gap.
    */
   async addGap(input: AddControlGapInput): Promise<ControlGap> {
+    const control = await this.getControl(input.controlId);
+
     const gap: ControlGap = {
       controlId: input.controlId,
-      controlName: input.controlId, // TODO: Get actual control name
+      controlName: control.name,
       issue: input.issue,
       impact: input.impact,
       remediation: input.remediation,
@@ -518,7 +623,10 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       status: 'open',
     };
 
-    // TODO: Store gap persistently
+    await this.dataLayer.write({
+      data: [gap],
+      partitionPath: this.getPartitionPath(control.frameworkId, control.category || '_', 'gap'),
+    });
 
     return gap;
   }
@@ -527,7 +635,7 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Update a gap.
    */
   async updateGap(gapId: string, updates: Partial<ControlGap>): Promise<ControlGap> {
-    // TODO: Implement gap update
+    // TODO: Implement gap update with proper querying
     throw new Error('updateGap not yet implemented');
   }
 
@@ -543,31 +651,38 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * List gaps.
    */
   async listGaps(frameworkId?: string, assessmentId?: string): Promise<ControlGap[]> {
-    // TODO: Implement gap listing
-    return [];
+    const partitionFilter: any = {
+      ...this.getBasePartitionPath(),
+      artifact: 'gap',
+    };
+
+    if (frameworkId) {
+      partitionFilter.framework = frameworkId;
+    }
+
+    const result = await this.dataLayer.query({
+      partitionFilter,
+    });
+
+    return (result.data || []) as ControlGap[];
   }
 
-  // Mapping operations
+  // ========================================
+  // Mapping Operations
+  // ========================================
 
   /**
    * Add a mapping.
    */
   async addMapping(mapping: ControlMapping): Promise<void> {
-    const mappingFile = join(
-      this.frameworkBasePath,
-      mapping.frameworkId,
-      'mappings',
-      `${mapping.type}s.json`
-    );
-
-    let mappings: ControlMapping[] = [];
-    if (existsSync(mappingFile)) {
-      const data = readFileSync(mappingFile, 'utf-8');
-      mappings = JSON.parse(data);
-    }
-
-    mappings.push(mapping);
-    writeFileSync(mappingFile, JSON.stringify(mappings, null, 2));
+    await this.dataLayer.write({
+      data: [mapping],
+      partitionPath: this.getPartitionPath(
+        mapping.frameworkId,
+        '_',
+        'mapping'
+      ),
+    });
   }
 
   /**
@@ -587,17 +702,24 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
    * Get mappings.
    */
   async getMappings(frameworkId: string, controlId?: string): Promise<ControlMapping[]> {
-    const mappingsDir = join(this.frameworkBasePath, frameworkId, 'mappings');
-    const mappings: ControlMapping[] = [];
+    const partitionFilter: any = this.getPartitionPath(frameworkId, '_', 'mapping');
 
-    if (!existsSync(mappingsDir)) {
-      return mappings;
+    const result = await this.dataLayer.query({
+      partitionFilter,
+    });
+
+    let mappings = (result.data || []) as ControlMapping[];
+
+    if (controlId) {
+      mappings = mappings.filter((m) => m.controlId === controlId);
     }
-
-    // TODO: Read all mapping files and filter by controlId if provided
 
     return mappings;
   }
+
+  // ========================================
+  // Sync Operations
+  // ========================================
 
   /**
    * Sync to backend (not applicable for local adapter).
@@ -629,5 +751,92 @@ export class LocalFrameworkAdapter implements IFrameworkAdapter {
       errors: [],
       durationMs: 0,
     };
+  }
+
+  // ========================================
+  // Helper Methods
+  // ========================================
+
+  /**
+   * Get base partition path from context.
+   */
+  private getBasePartitionPath(): any {
+    return {
+      administrative_unit: this.context.path.administrativeUnit,
+      business_unit: this.context.path.businessUnit,
+      organization: this.context.path.organization,
+      team: this.context.path.team,
+    };
+  }
+
+  /**
+   * Get partition path for framework data.
+   *
+   * Order: framework → category → artifact
+   *
+   * @param frameworkId Framework identifier (e.g., 'nist-csf')
+   * @param category Framework category (e.g., 'identify') or '_' for framework-wide
+   * @param artifact Artifact type (metadata, control, assessment, mapping, gap)
+   */
+  private getPartitionPath(
+    frameworkId: string,
+    category: string,
+    artifact: string
+  ): any {
+    return {
+      ...this.getBasePartitionPath(),
+      framework: frameworkId,
+      category: category,
+      artifact: artifact,
+    };
+  }
+
+  /**
+   * Sort controls by field.
+   */
+  private sortControls(
+    controls: Control[],
+    sortBy: string,
+    direction: 'asc' | 'desc' = 'asc'
+  ): Control[] {
+    const sorted = [...controls].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (sortBy) {
+        case 'controlId':
+          aVal = a.controlId;
+          bVal = b.controlId;
+          break;
+        case 'name':
+          aVal = a.name;
+          bVal = b.name;
+          break;
+        case 'status':
+          aVal = a.implementationStatus;
+          bVal = b.implementationStatus;
+          break;
+        case 'maturity':
+          aVal = parseInt(a.maturityLevel);
+          bVal = parseInt(b.maturityLevel);
+          break;
+        case 'lastAssessed':
+          aVal = a.lastAssessed || '';
+          bVal = b.lastAssessed || '';
+          break;
+        case 'priority':
+          aVal = a.priority || '';
+          bVal = b.priority || '';
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
   }
 }
