@@ -6,34 +6,35 @@ import { AsanaConfig, AsanaBackendBase } from './asana-config';
 /**
  * Asana-based implementation of the ITemplateBackend interface.
  *
- * In Asana, templates are implemented as specially tagged tasks in a
- * "Templates" section. When instantiating a template, we duplicate
- * the template task with its subtasks.
+ * This backend uses Asana's native Task Templates API for listing and
+ * instantiating templates. Templates can be created manually in Asana.
+ *
+ * For backwards compatibility, createTemplate() creates a task tagged as
+ * "template" which can be manually converted to a real template in Asana.
  */
 export class AsanaTemplateBackend extends AsanaBackendBase implements ITemplateBackend {
   private tasksApi: any;
   private tagsApi: any;
+  private taskTemplatesApi: any;
 
   constructor(config: AsanaConfig) {
     super(config);
     this.tasksApi = new Asana.TasksApi();
     this.tagsApi = new Asana.TagsApi();
+    this.taskTemplatesApi = new Asana.TaskTemplatesApi();
   }
 
   async listTemplates(): Promise<TaskTemplate[]> {
     try {
-      // Get all tasks in the project
-      const result = await this.tasksApi.getTasksForProject(this.projectId, {
-        opt_fields: 'gid,name,notes,tags.name,memberships.section.name,num_subtasks',
+      // Get all task templates available in the project
+      const result = await this.taskTemplatesApi.getTaskTemplates({
+        project: this.projectId,
+        opt_fields: 'gid,name,template',
       });
 
-      // Filter for tasks tagged as templates
-      const templates = result.data.filter((task: any) => {
-        const tags = task.tags?.map((tag: any) => tag.name.toLowerCase()) || [];
-        return tags.includes('template');
-      });
-
-      return templates.map((task: any) => this.mapToTemplate(task));
+      // Map Asana task templates to our TaskTemplate interface
+      const templates = result.data || [];
+      return templates.map((template: any) => this.mapTaskTemplateToTaskTemplate(template));
     } catch (error) {
       throw new Error(`Failed to list templates: ${error}`);
     }
@@ -41,11 +42,11 @@ export class AsanaTemplateBackend extends AsanaBackendBase implements ITemplateB
 
   async getTemplate(templateId: string): Promise<TaskTemplate> {
     try {
-      const result = await this.tasksApi.getTask(templateId, {
-        opt_fields: 'gid,name,notes,tags.name,memberships.section.name,num_subtasks',
+      const result = await this.taskTemplatesApi.getTaskTemplate(templateId, {
+        opt_fields: 'gid,name,template',
       });
 
-      return this.mapToTemplate(result.data);
+      return this.mapTaskTemplateToTaskTemplate(result.data);
     } catch (error) {
       throw new Error(`Failed to get template: ${error}`);
     }
@@ -57,62 +58,31 @@ export class AsanaTemplateBackend extends AsanaBackendBase implements ITemplateB
     sectionId?: string
   ): Promise<Task> {
     try {
-      // Get the template task
-      const template = await this.getTemplate(templateId);
-
-      // Create the main task from template
-      const taskData: any = {
-        name: taskName || template.name,
-        projects: [this.projectId],
+      // Instantiate a task from the template
+      const requestBody: any = {
+        name: taskName || 'Task from Template',
       };
 
-      if (template.notes) taskData.notes = template.notes;
-      if (template.isMilestone) taskData.is_milestone = true;
-
-      const result = await this.tasksApi.createTask({ data: taskData }, {
-        opt_fields: 'gid,name,notes,completed,due_on,tags.name',
-      });
-
-      const newTaskId = result.data.gid;
-
-      // Add tags from template
-      if (template.tags && template.tags.length > 0) {
-        for (const tagName of template.tags) {
-          // Skip the 'template' tag
-          if (tagName.toLowerCase() === 'template') continue;
-
-          await this.ensureAndAddTag(newTaskId, tagName);
+      const jobResult = await this.taskTemplatesApi.instantiateTask(
+        templateId,
+        {
+          body: { data: requestBody },
+          opt_fields: 'gid,new_task.gid,new_task.name,status',
         }
+      );
+
+      // The API returns a job that handles the instantiation asynchronously
+      const job = jobResult.data;
+
+      if (!job.new_task || !job.new_task.gid) {
+        throw new Error('Template instantiation did not return a task. Job may still be processing.');
       }
 
-      // Add priority tag if specified
-      if (template.priority) {
-        await this.ensureAndAddTag(newTaskId, `priority:${template.priority}`);
-      }
+      const newTaskId = job.new_task.gid;
 
       // Move to section if specified
       if (sectionId) {
         await this.tasksApi.addTaskForSection({ data: { task: newTaskId } }, sectionId);
-      }
-
-      // Copy subtasks if template has them
-      if (template.subtasks && template.subtasks.length > 0) {
-        // Get actual subtasks from the template
-        const subtasksResult = await this.tasksApi.getSubtasksForTask(templateId, {
-          opt_fields: 'gid,name,notes',
-        });
-
-        for (const subtask of subtasksResult.data) {
-          await this.tasksApi.createSubtaskForTask(
-            {
-              data: {
-                name: subtask.name,
-                notes: subtask.notes || undefined,
-              },
-            },
-            newTaskId
-          );
-        }
       }
 
       // Fetch and return the created task
@@ -160,7 +130,12 @@ export class AsanaTemplateBackend extends AsanaBackendBase implements ITemplateB
         await this.ensureAndAddTag(templateId, `priority:${priority}`);
       }
 
-      return await this.getTemplate(templateId);
+      // Fetch the created task and map it to a template
+      const taskResult = await this.tasksApi.getTask(templateId, {
+        opt_fields: 'gid,name,notes,tags.name,memberships.section.name,num_subtasks,is_milestone',
+      });
+
+      return this.mapToTemplate(taskResult.data);
     } catch (error) {
       throw new Error(`Failed to create template: ${error}`);
     }
@@ -175,6 +150,27 @@ export class AsanaTemplateBackend extends AsanaBackendBase implements ITemplateB
   }
 
   // Helper methods
+
+  /**
+   * Maps an Asana Task Template to our TaskTemplate interface
+   */
+  private mapTaskTemplateToTaskTemplate(taskTemplate: any): TaskTemplate {
+    return {
+      gid: taskTemplate.gid,
+      name: taskTemplate.name,
+      notes: taskTemplate.template || undefined,
+      tags: undefined, // Task templates don't have tags in the API
+      section: undefined,
+      priority: undefined,
+      isMilestone: undefined,
+      subtasks: undefined, // Would need to instantiate to see subtasks
+    };
+  }
+
+  /**
+   * Maps a task tagged as "template" to our TaskTemplate interface
+   * Used for backwards compatibility with createTemplate()
+   */
   private mapToTemplate(task: any): TaskTemplate {
     const tags = task.tags?.map((tag: any) => tag.name) || [];
     const priorityTag = tags.find((t: string) => t.startsWith('priority:'));

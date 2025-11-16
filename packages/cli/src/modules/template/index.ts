@@ -264,7 +264,7 @@ Templates streamline repetitive task creation with consistent structure.`);
           console.log(`\nFound ${templates.length} template(s):\n`);
           for (const tpl of templates) {
             console.log(`📋 ${tpl.name} (${tpl.gid})`);
-            if (tpl.notes) {
+            if (tpl.notes && typeof tpl.notes === 'string') {
               console.log(`   ${tpl.notes.substring(0, 60)}${tpl.notes.length > 60 ? '...' : ''}`);
             }
             if (tpl.tags && tpl.tags.length > 0) {
